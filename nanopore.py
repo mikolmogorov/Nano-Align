@@ -9,7 +9,6 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 Struct = namedtuple("Struct", ["open_current", "dwell", "pa_blockade", "trace"])
 
 
@@ -17,7 +16,6 @@ def get_data(filename):
     matrix = sio.loadmat(filename)["Struct"][0][0]
     event_traces = matrix[5]
     num_samples = event_traces.shape[1]
-    sample_len = len(event_traces[:, 0])
 
     events = []
     for sample_id in xrange(num_samples):
@@ -37,12 +35,12 @@ def find_peaks(signal):
     WINDOW = 6
     deriv = np.zeros(len(signal) - 2)
     for i in xrange(len(deriv)):
-        deriv[i] = (signal[i+2] - signal[i]) / 2
+        deriv[i] = (signal[i + 2] - signal[i]) / 2
 
     peaks = []
     for pos in xrange(WINDOW / 2, len(deriv) - WINDOW / 2):
-        left = deriv[pos - WINDOW / 2 : pos]
-        right = deriv[pos : pos + WINDOW / 2 ]
+        left = deriv[pos - WINDOW / 2: pos]
+        right = deriv[pos: pos + WINDOW / 2]
 
         if all(x > 0 for x in left) and all(y < 0 for y in right):
             peaks.append(pos)
@@ -75,32 +73,47 @@ def get_acids_positions(peptide, window_size, plot_len):
     return positions
 
 
+def fill_gaps(alignment):
+    res = np.zeros(len(alignment))
+    open_gap = None if alignment[0] is not None else 0
+
+    for i in xrange(len(alignment)):
+        if open_gap is not None:
+            if alignment[i] is not None:
+                left, right = alignment[open_gap], alignment[i]
+                if left is None:
+                    left = right
+
+                for j in xrange(open_gap, i + 1):
+                    rate = (j - open_gap) / (i - open_gap)
+                    res[j] = left + (right - left) * rate
+                open_gap = None
+        else:
+            if alignment[i] is not None:
+                res[i] = alignment[i]
+            else:
+                open_gap = i - 1
+    return res
+
+
+def fit_to_model(model_trace, event_trace):
+    match = lambda p1, p2: 100 * (0.1 - abs(p1 - p2))
+    score, aln_model, aln_event = glob_affine_gap(model_trace, event_trace,
+                                                  -4, -3, match)
+    filled_event = fill_gaps(aln_event)
+    #print(len(aln_model), len(aln_event))
+    #print(len([x for x in aln_model if x is None]))
+    #print(len([x for x in aln_event if x is None]))
+    trimmed_event = []
+    for i in xrange(len(filled_event)):
+        if aln_model[i] is not None:
+            trimmed_event.append(filled_event[i])
+    return trimmed_event
+
+
 def alignment(signal_1, signal_2):
     match = lambda p1, p2: 100 * (0.1 - abs(p1 - p2))
-    score, aln_1, aln_2 = glob_affine_gap(signal_1, signal_2, -5, -5, match)
-
-    def fill_gaps(alignment):
-        res = np.zeros(len(alignment))
-        open_gap = None if alignment[0] is not None else 0
-
-        for i in xrange(len(alignment)):
-            if open_gap is not None:
-                if alignment[i] is not None:
-                    left, right = alignment[open_gap], alignment[i]
-                    if left is None:
-                        left = right
-
-                    for j in xrange(open_gap, i + 1):
-                        rate = (j - open_gap) / (i - open_gap)
-                        res[j] = left + (right - left) * rate
-                    open_gap = None
-            else:
-                if alignment[i] is not None:
-                    res[i] = alignment[i]
-                else:
-                    open_gap = i - 1
-        return res
-
+    score, aln_1, aln_2 = glob_affine_gap(signal_1, signal_2, -4, -3, match)
     return score, fill_gaps(aln_1), fill_gaps(aln_2)
 
 
@@ -118,8 +131,10 @@ def glob_affine_gap(seq1, seq2, gap_open, gap_ext, match_fun):
 
     for i in xrange(len1 + 1):
         s_x[i][0] = gap_open + (i - 1) * gap_ext
+        b_x[i][0] = 1
     for i in xrange(len2 + 1):
         s_y[0][i] = gap_open + (i - 1) * gap_ext
+        b_y[0][i] = 2
 
     for i in xrange(1, len1 + 1):
         for j in xrange(1, len2 + 1):
@@ -143,13 +158,13 @@ def glob_affine_gap(seq1, seq2, gap_open, gap_ext, match_fun):
             b_x[i][j] = lst_x.index(s_x[i][j])
             b_y[i][j] = lst_y.index(s_y[i][j])
 
-    #backtracking
+    # backtracking
     all_mat = [s_m, s_x, s_y]
     i, j = len1, len2
-    cur_mat = max(s_m, s_x, s_y, key=lambda x : x[len1][len2])
+    cur_mat = max(s_m, s_x, s_y, key=lambda x: x[len1][len2])
     score = cur_mat[len1][len2]
     res1, res2 = [], []
-    while i != 0 and j != 0:
+    while i > 0 or j > 0:
         if id(cur_mat) == id(s_m):
             res1.append(seq1[i - 1])
             res2.append(seq2[j - 1])
@@ -177,19 +192,19 @@ def plot_blockades(events, prot, window):
     model_volume_mean = np.mean(model_volume)
     model_volume_std = np.std(model_volume)
     model_grid = [i * event_len / (len(model_volume) - 1)
-                 for i in xrange(len(model_volume))]
-    #consensus = get_consensus(events)
+                  for i in xrange(len(model_volume))]
+    # consensus = get_consensus(events)
 
     print("Number of samles: {0}".format(num_samples))
     for event in events:
-        #peaks = find_peaks(event.trace)
-        #print("Peaks detected: {0}".format(len(peaks)))
+        # peaks = find_peaks(event.trace)
+        # print("Peaks detected: {0}".format(len(peaks)))
 
         sample_mean = np.mean(event.trace)
         sample_std = np.std(event.trace)
         scale_factor = sample_std / model_volume_std
 
-        #fitting
+        # fitting
         model_scaled = map(lambda t: (t - model_volume_mean) * scale_factor + sample_mean,
                            model_volume)
         interp_fun = interp1d(model_grid, model_scaled, kind="cubic")
@@ -198,32 +213,32 @@ def plot_blockades(events, prot, window):
 
         reduced_trace = map(lambda i: event.trace[i], xrange(0, event_len, 10))
         reduced_model = map(lambda i: model_interp[i], xrange(0, event_len, 10))
-        score, aligned_trace, aligned_model = alignment(reduced_trace,
-                                                        reduced_model)
-        inverted_score, _a_t, _a_m = alignment(reduced_trace, reduced_model[::-1])
+        fitted_event = fit_to_model(reduced_model, reduced_trace)
+        #score, aligned_trace, aligned_model = alignment(reduced_trace,
+        #                                                reduced_model)
+        #inverted_score, _a_t, _a_m = alignment(reduced_trace, reduced_model[::-1])
 
         print("Dwell: {0}".format(event.dwell))
         print("Open current: {0}".format(event.open_current))
         print("Blockade shift: {0}".format(event.pa_blockade))
-        #print("Match score: {0}".format(score))
-        #print("Inverted model score: {0}".format(inverted_score))
+        # print("Match score: {0}".format(score))
+        # print("Inverted model score: {0}".format(inverted_score))
 
         plt.figure(dpi=160)
-        plt.plot(aligned_trace, label="blockade")
-        plt.plot(aligned_model, label="model")
-        #plt.plot(event.trace, label="blockade")
-        #plt.plot(model_interp, label="model")
+        #plt.plot(aligned_trace, label="blockade")
+        #plt.plot(aligned_model, label="model")
+        plt.plot(fitted_event, label="blockade")
+        plt.plot(reduced_model, label="model")
 
-        #adding AAs text:
-        font_size = 10
-        acids_pos = get_acids_positions(prot, window, len(aligned_trace))
+        # adding AAs text:
+        acids_pos = get_acids_positions(prot, window, len(fitted_event))
         #acids_pos = get_acids_positions(prot, window, len(event.trace))
         for i, aa in enumerate(prot):
             plt.text(acids_pos[i], 0.1, aa, fontsize=10)
 
-        #plt.plot(consensus, label="consenus")
-        #yy = map(lambda p: event.trace[p], peaks)
-        #plt.plot(peaks, yy, "ro")
+        # plt.plot(consensus, label="consenus")
+        # yy = map(lambda p: event.trace[p], peaks)
+        # plt.plot(peaks, yy, "ro")
 
         plt.legend()
         plt.show()
@@ -238,13 +253,14 @@ def get_consensus(events):
     return consensus / len(events)
 
 
-#CCL5
+# CCL5
 PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
-#CXCL1
-#PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-#H3N
-#PROT = "ARTKQTARKSTGGKAPRKQL"
+# CXCL1
+# PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
+# H3N
+# PROT = "ARTKQTARKSTGGKAPRKQL"
 WINDOW = 3
+
 
 def main():
     if len(sys.argv) != 2:
