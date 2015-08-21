@@ -184,6 +184,27 @@ def glob_affine_gap(seq1, seq2, gap_open, gap_ext, match_fun):
     return score, res1[::-1], res2[::-1]
 
 
+def compare_events(events):
+    event_len = len(events[0].trace)
+    for event_1, event_2 in zip(events[:-1], events[1:]):
+        median_1 = np.median(event_1.trace)
+        median_2 = np.median(event_2.trace)
+        std_1 = np.std(event_1.trace)
+        std_2 = np.std(event_2.trace)
+
+        scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
+                       event_2.trace)
+
+        reduced_1 = map(lambda i: event_1.trace[i], xrange(0, event_len, 10))
+        reduced_2 = map(lambda i: scaled_2[i], xrange(0, event_len, 10))
+        score, aligned_1, aligned_2 = alignment(reduced_1, reduced_2)
+
+        plt.figure(dpi=160)
+        plt.plot(aligned_1)
+        plt.plot(aligned_2)
+        plt.show()
+
+
 def plot_blockades(events, prot, window):
     event_len = len(events[0].trace)
     num_samples = len(events)
@@ -268,7 +289,8 @@ def main():
         return 1
 
     events = get_data(sys.argv[1])
-    plot_blockades(events, PROT, WINDOW)
+    #plot_blockades(events, PROT, WINDOW)
+    compare_events(events)
 
 
 if __name__ == "__main__":
