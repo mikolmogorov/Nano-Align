@@ -6,8 +6,10 @@ from collections import namedtuple
 
 import scipy.io as sio
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 Struct = namedtuple("Struct", ["open_current", "dwell", "pa_blockade", "trace"])
 
@@ -99,7 +101,7 @@ def fill_gaps(alignment):
 def fit_to_model(model_trace, event_trace):
     match = lambda p1, p2: 100 * (0.1 - abs(p1 - p2))
     score, aln_model, aln_event = glob_affine_gap(model_trace, event_trace,
-                                                  -4, -3, match)
+                                                  -2, -1, match)
     filled_event = fill_gaps(aln_event)
     #print(len(aln_model), len(aln_event))
     #print(len([x for x in aln_model if x is None]))
@@ -184,78 +186,94 @@ def glob_affine_gap(seq1, seq2, gap_open, gap_ext, match_fun):
     return score, res1[::-1], res2[::-1]
 
 
-def compare_events(events):
-    event_len = len(events[0].trace)
+def compare_events(events, prot, align, need_smooth):
+    event_len = len(events[0])
     for event_1, event_2 in zip(events[:-1], events[1:]):
-        median_1 = np.median(event_1.trace)
-        median_2 = np.median(event_2.trace)
-        std_1 = np.std(event_1.trace)
-        std_2 = np.std(event_2.trace)
+        if need_smooth:
+            smooth_frac = float(1) / len(prot)
+            event_1 = smooth(event_1, smooth_frac)
+            event_2 = smooth(event_2, smooth_frac)
+
+        median_1 = np.median(event_1)
+        median_2 = np.median(event_2)
+        std_1 = np.std(event_1)
+        std_2 = np.std(event_2)
 
         scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
-                       event_2.trace)
+                       event_2)
 
-        reduced_1 = map(lambda i: event_1.trace[i], xrange(0, event_len, 10))
-        reduced_2 = map(lambda i: scaled_2[i], xrange(0, event_len, 10))
-        score, aligned_1, aligned_2 = alignment(reduced_1, reduced_2)
+        if align:
+            reduced_1 = map(lambda i: event_1[i], xrange(0, event_len, 10))
+            reduced_2 = map(lambda i: scaled_2[i], xrange(0, event_len, 10))
+            score, aligned_1, aligned_2 = alignment(reduced_1, reduced_2)
+            plot_1 = aligned_1
+            plot_2 = aligned_2
+        else:
+            plot_1 = event_1
+            plot_2 = scaled_2
 
-        plt.figure(dpi=160)
-        plt.plot(aligned_1)
-        plt.plot(aligned_2)
+        plt.plot(plot_1)
+        plt.plot(plot_2)
         plt.show()
 
+def scale_events(main_signal, scaled_signal):
+    median_main = np.median(main_signal)
+    median_scaled = np.median(scaled_signal)
+    std_main = np.std(main_signal)
+    std_scaled = np.std(scaled_signal)
 
-def plot_blockades(events, prot, window):
-    event_len = len(events[0].trace)
+    scale_guess = std_main / std_scaled
+    """
+    obj_fun = (lambda (s, o_1, o_2):
+                100 * sum((main_signal - (scaled_signal - o_1) * s + o_2) ** 2))
+    res = minimize(obj_fun, [scale_guess, median_main, median_scaled])
+    scale, offset_1, offset_2 = res.x
+    return (scaled_signal - offset_1) * scale - offset_2
+    """
+    return np.array(map(lambda x: (x - median_scaled) * scale_guess + median_main,
+                        scaled_signal))
+
+
+def plot_blockades(events, prot, window, alignment, need_smooth):
+    event_len = len(events[0])
     num_samples = len(events)
 
     model_volume = theoretical_signal(prot, window)
-    model_volume_mean = np.mean(model_volume)
-    model_volume_std = np.std(model_volume)
     model_grid = [i * event_len / (len(model_volume) - 1)
                   for i in xrange(len(model_volume))]
-    # consensus = get_consensus(events)
+    #consensus = get_consensus(events)
 
-    print("Number of samles: {0}".format(num_samples))
     for event in events:
-        # peaks = find_peaks(event.trace)
-        # print("Peaks detected: {0}".format(len(peaks)))
+        if need_smooth:
+            smooth_frac = float(1) / len(prot)
+            event = smooth(event, smooth_frac)
+        #peaks = find_peaks(event.trace)
+        #print("Peaks detected: {0}".format(len(peaks)))
 
-        sample_mean = np.mean(event.trace)
-        sample_std = np.std(event.trace)
-        scale_factor = sample_std / model_volume_std
-
-        # fitting
-        model_scaled = map(lambda t: (t - model_volume_mean) * scale_factor + sample_mean,
-                           model_volume)
-        interp_fun = interp1d(model_grid, model_scaled, kind="cubic")
+        interp_fun = interp1d(model_grid, model_volume, kind="cubic")
         model_interp = interp_fun(xrange(event_len))
+        model_scaled = scale_events(event, model_interp)
         ###
 
-        reduced_trace = map(lambda i: event.trace[i], xrange(0, event_len, 10))
-        reduced_model = map(lambda i: model_interp[i], xrange(0, event_len, 10))
-        fitted_event = fit_to_model(reduced_model, reduced_trace)
-        #score, aligned_trace, aligned_model = alignment(reduced_trace,
-        #                                                reduced_model)
-        #inverted_score, _a_t, _a_m = alignment(reduced_trace, reduced_model[::-1])
+        if alignment:
+            reduced_trace = map(lambda i: event[i], xrange(0, event_len, 10))
+            reduced_model = map(lambda i: model_scaled[i], xrange(0, event_len, 10))
+            fitted_event = fit_to_model(reduced_model, reduced_trace)
+            event_plot = fitted_event
+            model_plot = reduced_model
+        else:
+            event_plot = event
+            model_plot = model_scaled
 
-        print("Dwell: {0}".format(event.dwell))
-        print("Open current: {0}".format(event.open_current))
-        print("Blockade shift: {0}".format(event.pa_blockade))
-        # print("Match score: {0}".format(score))
-        # print("Inverted model score: {0}".format(inverted_score))
-
-        plt.figure(dpi=160)
-        #plt.plot(aligned_trace, label="blockade")
-        #plt.plot(aligned_model, label="model")
-        plt.plot(fitted_event, label="blockade")
-        plt.plot(reduced_model, label="model")
+        #plt.figure(dpi=160)
+        plt.plot(event_plot, label="blockade")
+        plt.plot(model_plot, label="model")
 
         # adding AAs text:
-        acids_pos = get_acids_positions(prot, window, len(fitted_event))
-        #acids_pos = get_acids_positions(prot, window, len(event.trace))
+        event_mean = np.mean(event)
+        acids_pos = get_acids_positions(prot, window, len(event_plot))
         for i, aa in enumerate(prot):
-            plt.text(acids_pos[i], 0.1, aa, fontsize=10)
+            plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
 
         # plt.plot(consensus, label="consenus")
         # yy = map(lambda p: event.trace[p], peaks)
@@ -274,13 +292,36 @@ def get_consensus(events):
     return consensus / len(events)
 
 
-# CCL5
-PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
-# CXCL1
-# PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-# H3N
-# PROT = "ARTKQTARKSTGGKAPRKQL"
-WINDOW = 3
+def smooth(signal, frac):
+    x = lowess(signal, range(len(signal)), return_sorted=False, frac=frac)
+    return x
+
+
+def get_averages(events, bin_size, flank, reverse):
+    averages = []
+    for event_bin in xrange(0, len(events) / bin_size):
+        avg_signal = get_consensus(events[event_bin*bin_size:
+                                   (event_bin+1)*bin_size])
+        if reverse:
+            avg_signal = avg_signal[::-1]
+        averages.append(avg_signal[flank:-flank])
+
+    return averages
+
+#CCL5
+#PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+#CXCL1
+#PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
+#H3N
+PROT = "ARTKQTARKSTGGKAPRKQL"
+
+
+WINDOW = 4
+AVERAGE = 10
+FLANK = 50
+ALIGNMENT = False
+REVERSE = True
+SMOOTH = True
 
 
 def main():
@@ -289,8 +330,10 @@ def main():
         return 1
 
     events = get_data(sys.argv[1])
-    #plot_blockades(events, PROT, WINDOW)
-    compare_events(events)
+    averages = get_averages(events, AVERAGE, FLANK, REVERSE)
+
+    plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
+    #compare_events(averages, PROT, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":
