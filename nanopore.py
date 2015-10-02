@@ -4,6 +4,7 @@ from __future__ import print_function
 import sys
 from collections import namedtuple
 
+import math
 import scipy.io as sio
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
@@ -60,8 +61,10 @@ def theoretical_signal(peptide, window_size):
     signal = []
     for i in xrange(-window_size + 1, len(peptide) - 1):
         start, end = max(i, 0), min(i + window_size, len(peptide))
-        volume = sum(map(VOLUMES.get, peptide[start:end]))
-        signal.append(volume / window_size)
+        volumes = np.array(map(VOLUMES.get, peptide[start:end]))
+        value = math.sqrt(np.mean(volumes ** 2))
+        #value = np.mean(volumes)
+        signal.append(value)
     return signal
 
 
@@ -199,8 +202,10 @@ def compare_events(events, prot, align, need_smooth):
         std_1 = np.std(event_1)
         std_2 = np.std(event_2)
 
-        scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
-                       event_2)
+        #scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
+        #               event_2)
+        scaled_1 = event_1 / median_1
+        scaled_2 = event_2 / median_2
 
         if align:
             reduced_1 = map(lambda i: event_1[i], xrange(0, event_len, 10))
@@ -209,7 +214,7 @@ def compare_events(events, prot, align, need_smooth):
             plot_1 = aligned_1
             plot_2 = aligned_2
         else:
-            plot_1 = event_1
+            plot_1 = scaled_1
             plot_2 = scaled_2
 
         plt.plot(plot_1)
@@ -222,7 +227,8 @@ def scale_events(main_signal, scaled_signal):
     std_main = np.std(main_signal)
     std_scaled = np.std(scaled_signal)
 
-    scale_guess = std_main / std_scaled
+    #scale_guess = std_main / std_scaled
+    scale_guess = median_main / median_scaled
     """
     obj_fun = (lambda (s, o_1, o_2):
                 100 * sum((main_signal - (scaled_signal - o_1) * s + o_2) ** 2))
@@ -230,8 +236,9 @@ def scale_events(main_signal, scaled_signal):
     scale, offset_1, offset_2 = res.x
     return (scaled_signal - offset_1) * scale - offset_2
     """
-    return np.array(map(lambda x: (x - median_scaled) * scale_guess + median_main,
-                        scaled_signal))
+    #return np.array(map(lambda x: (x - median_scaled) * scale_guess + median_main,
+    #                    scaled_signal))
+    return scaled_signal * scale_guess
 
 
 def plot_blockades(events, prot, window, alignment, need_smooth):
@@ -332,8 +339,8 @@ def main():
     events = get_data(sys.argv[1])
     averages = get_averages(events, AVERAGE, FLANK, REVERSE)
 
-    plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
-    #compare_events(averages, PROT, ALIGNMENT, SMOOTH)
+    #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
+    compare_events(averages, PROT, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":
