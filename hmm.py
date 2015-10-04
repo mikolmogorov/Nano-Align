@@ -4,7 +4,7 @@ from __future__ import print_function
 import sys
 from string import maketrans
 from itertools import repeat, product
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import math
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
@@ -58,9 +58,6 @@ class NanoHMM(object):
         self.ending_states = map(self.state_to_id.get, ending_states)
 
     def model_fit(self, inferred):
-        #for event in discrete_events:
-        #model = map(lambda e: self.regression.intercept +
-        #            self.regression.slope * e, self.pep_volumes)
         inferred = map(lambda s: _avg_volume(self.id_to_state[s]), inferred)
         plt.plot(inferred)
         plt.plot(self.pep_volumes)
@@ -78,15 +75,14 @@ class NanoHMM(object):
 
     def emission_prob(self, state_id, observation):
         volume = _avg_volume(self.id_to_state[state_id])
-        expec_mean = self.regression.intercept + self.regression.slope * volume
-        x = norm(expec_mean, self.regression.std).pdf(observation)
-        #print(expec_mean, observation)
-        #print(x)
+        expec_mean = self.volume_to_signal(volume)
+        x = norm(expec_mean, 1).pdf(observation)
         return x
 
     def learn_emissions_distr(self, events):
         volumes = []
         signals = []
+        means_table = defaultdict(list)
         discrete_events = []
 
         event_len = len(events[0])
@@ -99,9 +95,6 @@ class NanoHMM(object):
             event = _normalize(event)
             discretized = []
             self.pep_volumes = []
-            #volumes = []
-            #signals = []
-            #xxx = []
 
             for i in xrange(0, num_peaks):
                 kmer = flanked_peptide[i : i + self.window]
@@ -117,25 +110,28 @@ class NanoHMM(object):
                 self.pep_volumes.append(volume)
                 signals.append(signal)
                 discretized.append(signal)
-                #xxx.append(signal_pos)
-                #print(kmer, weights, signal)
-                #print(kmer, signal_pos)
+                means_table[volume].append(signal)
 
             discrete_events.append(np.array(discretized))
 
-            #plt.plot(xxx, signals)
-            #plt.plot(event)
-            #plt.show()
-
         res = linregress(volumes, signals)
+        self.regression = VolSigRegression(res[0], res[1], res[4])
         #plt.scatter(volumes, signals)
         #plt.show()
         print(res)
-        self.regression = VolSigRegression(res[0], res[1], res[4])
+
+        for volume in means_table:
+            means_table[volume] = np.mean(means_table[volume])
+        self.means_table = means_table
+
         return discrete_events
 
-    def init_state_distr():
-        pass
+    def volume_to_signal(self, volume):
+        return self.regression.intercept + self.regression.slope * volume
+        #if volume not in self.means_table:
+        #    return self.regression.intercept + self.regression.slope * volume
+        #else:
+        #    return self.means_table[volume]
 
     def hmm(self, observ_seq):
         num_observ = len(observ_seq)
@@ -227,8 +223,7 @@ def main():
 
     discrete_events = nano_hmm.learn_emissions_distr(averages)
     correct_weights = _aa_to_weights(nano_hmm.peptide)
-    print(correct_weights)
-    print()
+    print(correct_weights, "\n")
     for obs in discrete_events:
         states, weights = nano_hmm.hmm(obs)
 
