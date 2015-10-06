@@ -3,8 +3,9 @@
 from __future__ import print_function
 import sys
 from collections import namedtuple
-
 import math
+import random
+
 import scipy.io as sio
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
@@ -12,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-Struct = namedtuple("Struct", ["open_current", "dwell", "pa_blockade", "trace"])
+Struct = namedtuple("Struct", ["open_pore", "dwell", "pa_blockade", "trace"])
 
 
 def get_data(filename):
@@ -24,12 +25,19 @@ def get_data(filename):
     for sample_id in xrange(num_samples):
         dwell = float(matrix[2][0][sample_id])
         pa_blockade = float(matrix[3][0][sample_id])
-        open_current = float(matrix[4][0][sample_id])
+        open_pore = float(matrix[4][0][sample_id])
 
         trace = np.array(event_traces[:, sample_id])
-        trace = -(trace - open_current) / open_current
+        fraction = -pa_blockade / open_pore
+        trace = 1 - trace / open_pore
+        trace -= min(trace)
+        #trace /= fraction
+        #print(np.mean(trace), fraction)
+        #if dwell > 1:
+        #    continue
+        #print(pa_blockade, open_pore)
 
-        events.append(Struct(open_current, dwell, pa_blockade, trace))
+        events.append(Struct(open_pore, dwell, pa_blockade, trace))
 
     return events
 
@@ -55,15 +63,14 @@ def theoretical_signal(peptide, window_size):
     VOLUMES = {"I": 0.1688, "F": 0.2034, "V": 0.1417, "L": 0.1679,
                "W": 0.2376, "M": 0.1708, "A": 0.0915, "G": 0.0664,
                "C": 0.1056, "Y": 0.2036, "P": 0.1293, "T": 0.1221,
-               "S": 0.0991, "H": 0.1673, "E": 0.1551, "N": 0.1359,
+               "S": 0.0991, "H": 0.1673, "E": 0.1551, "N": 0.1352,
                "Q": 0.1611, "D": 0.1245, "K": 0.1713, "R": 0.2021}
 
     signal = []
     for i in xrange(-window_size + 1, len(peptide) - 1):
         start, end = max(i, 0), min(i + window_size, len(peptide))
         volumes = np.array(map(VOLUMES.get, peptide[start:end]))
-        value = math.sqrt(np.mean(volumes ** 2))
-        #value = np.mean(volumes)
+        value = sum(volumes) / window_size
         signal.append(value)
     return signal
 
@@ -106,9 +113,6 @@ def fit_to_model(model_trace, event_trace):
     score, aln_model, aln_event = glob_affine_gap(model_trace, event_trace,
                                                   -2, -1, match)
     filled_event = fill_gaps(aln_event)
-    #print(len(aln_model), len(aln_event))
-    #print(len([x for x in aln_model if x is None]))
-    #print(len([x for x in aln_event if x is None]))
     trimmed_event = []
     for i in xrange(len(filled_event)):
         if aln_model[i] is not None:
@@ -214,8 +218,8 @@ def compare_events(events, prot, align, need_smooth):
             plot_1 = aligned_1
             plot_2 = aligned_2
         else:
-            plot_1 = scaled_1
-            plot_2 = scaled_2
+            plot_1 = event_1
+            plot_2 = event_2
 
         plt.plot(plot_1)
         plt.plot(plot_2)
@@ -228,16 +232,16 @@ def scale_events(main_signal, scaled_signal):
     std_scaled = np.std(scaled_signal)
 
     #scale_guess = std_main / std_scaled
+    #offset_guess = median_main - median_scaled
     scale_guess = median_main / median_scaled
-    """
-    obj_fun = (lambda (s, o_1, o_2):
-                100 * sum((main_signal - (scaled_signal - o_1) * s + o_2) ** 2))
-    res = minimize(obj_fun, [scale_guess, median_main, median_scaled])
-    scale, offset_1, offset_2 = res.x
-    return (scaled_signal - offset_1) * scale - offset_2
-    """
+    #obj_fun = lambda (s, o): sum((main_signal - (scaled_signal * s + o)) ** 2)
+    #res = minimize(obj_fun, [scale_guess, median_main])
+    #print(res)
+    #scale, offset = res.x
+    #return scaled_signal * scale + offset
     #return np.array(map(lambda x: (x - median_scaled) * scale_guess + median_main,
     #                    scaled_signal))
+    #print(scale_guess)
     return scaled_signal * scale_guess
 
 
@@ -248,7 +252,6 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
     model_volume = theoretical_signal(prot, window)
     model_grid = [i * event_len / (len(model_volume) - 1)
                   for i in xrange(len(model_volume))]
-    #consensus = get_consensus(events)
 
     for event in events:
         if need_smooth:
@@ -272,7 +275,6 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
             event_plot = event
             model_plot = model_scaled
 
-        #plt.figure(dpi=160)
         plt.plot(event_plot, label="blockade")
         plt.plot(model_plot, label="model")
 
@@ -281,10 +283,6 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
         acids_pos = get_acids_positions(prot, window, len(event_plot))
         for i, aa in enumerate(prot):
             plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
-
-        # plt.plot(consensus, label="consenus")
-        # yy = map(lambda p: event.trace[p], peaks)
-        # plt.plot(peaks, yy, "ro")
 
         plt.legend()
         plt.show()
@@ -306,6 +304,7 @@ def smooth(signal, frac):
 
 def get_averages(events, bin_size, flank, reverse):
     averages = []
+    random.shuffle(events)
     for event_bin in xrange(0, len(events) / bin_size):
         avg_signal = get_consensus(events[event_bin*bin_size:
                                    (event_bin+1)*bin_size])
@@ -325,7 +324,7 @@ PROT = "ARTKQTARKSTGGKAPRKQL"
 
 WINDOW = 4
 AVERAGE = 10
-FLANK = 50
+FLANK = 10
 ALIGNMENT = False
 REVERSE = True
 SMOOTH = True
@@ -339,8 +338,8 @@ def main():
     events = get_data(sys.argv[1])
     averages = get_averages(events, AVERAGE, FLANK, REVERSE)
 
-    #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
-    compare_events(averages, PROT, ALIGNMENT, SMOOTH)
+    plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
+    #compare_events(averages, PROT, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":

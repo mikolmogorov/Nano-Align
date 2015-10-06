@@ -21,12 +21,12 @@ VolSigRegression = namedtuple("VolSigRegression", ["slope", "intercept", "std"])
 
 class NanoHMM(object):
     def __init__(self):
-        #self.peptide = "ARTKQTARKSTGGKAPRKQL"
-        self.peptide = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
+        self.peptide = "ARTKQTARKSTGGKAPRKQL"
+        #self.peptide = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
         self.window = 4
-        self.average = 5
+        self.average = 50
         self.flank = 10
-        self.reverse = False
+        self.reverse = True
         self.regression = None
         self.init_distr = None
         self.trans_table = None
@@ -38,7 +38,7 @@ class NanoHMM(object):
         self.set_trans_table()
 
     def set_state_space(self):
-        all_acids = "-LMH"
+        all_acids = "-TLMH"
         all_states = product(all_acids, repeat=self.window)
         all_states = sorted(map("".join, all_states))
         for state_id, state in enumerate(all_states):
@@ -47,14 +47,16 @@ class NanoHMM(object):
 
     def set_init_distr(self):
         self.init_distr = np.ones(len(self.state_to_id)) * 0.000001
+        tiny_init = "-" * (self.window - 1) + "T"
         light_init = "-" * (self.window - 1) + "L"
         med_init = "-" * (self.window - 1) + "M"
         heavy_init = "-" * (self.window - 1) + "H"
-        self.init_distr[self.state_to_id[light_init]] = float(1) / 3
-        self.init_distr[self.state_to_id[med_init]] = float(1) / 3
-        self.init_distr[self.state_to_id[heavy_init]] = float(1) / 3
+        self.init_distr[self.state_to_id[light_init]] = float(1) / 4
+        self.init_distr[self.state_to_id[med_init]] = float(1) / 4
+        self.init_distr[self.state_to_id[heavy_init]] = float(1) / 4
+        self.init_distr[self.state_to_id[tiny_init]] = float(1) / 4
 
-        ending_states = [light_init[::-1], med_init[::-1], heavy_init[::-1]]
+        ending_states = [light_init[::-1], med_init[::-1], heavy_init[::-1], tiny_init[::-1]]
         self.ending_states = map(self.state_to_id.get, ending_states)
 
     def model_fit(self, inferred):
@@ -63,7 +65,6 @@ class NanoHMM(object):
         plt.plot(self.pep_volumes)
         plt.show()
 
-
     def set_trans_table(self):
         self.trans_table = np.ones((len(self.state_to_id),
                                     len(self.state_to_id))) * 0.000001
@@ -71,7 +72,7 @@ class NanoHMM(object):
             seq_1 = self.id_to_state[st_1]
             seq_2 = self.id_to_state[st_2]
             if seq_1[1:] == seq_2[:-1]:
-                self.trans_table[st_1][st_2] = 0.25
+                self.trans_table[st_1][st_2] = 0.20
 
     def emission_prob(self, state_id, observation):
         volume = _avg_volume(self.id_to_state[state_id])
@@ -196,7 +197,7 @@ def _normalize(signal):
 
 
 AA_SIZE_TRANS = maketrans("GASCTDPNVEQHLIMKRFYW-",
-                          "LLLLLLLMMMMMMMHHHHHH-")
+                          "TTTTLLLLLMMMMMMMHHHH-")
 def _aa_to_weights(kmer):
     return kmer.translate(AA_SIZE_TRANS)
 
@@ -209,10 +210,15 @@ def _hamming_dist(str_1, str_2):
 
 
 def _avg_volume(kmer):
-    light = kmer.count("L") * 0.1
-    medium = kmer.count("M") * 0.16
-    heavy = kmer.count("H") * 0.2
-    return float(light + medium + heavy) / len(kmer)
+    tiny = kmer.count("T") * 0.09
+    light = kmer.count("L") * 0.12
+    medium = kmer.count("M") * 0.17
+    heavy = kmer.count("H") * 0.22
+    return float(tiny + light + medium + heavy) / len(kmer)
+
+
+def _most_common(lst):
+    return max(set(lst), key=lst.count)
 
 
 def main():
@@ -224,6 +230,8 @@ def main():
     discrete_events = nano_hmm.learn_emissions_distr(averages)
     correct_weights = _aa_to_weights(nano_hmm.peptide)
     print(correct_weights, "\n")
+    profile = [[] for x in xrange(len(correct_weights))]
+
     for obs in discrete_events:
         states, weights = nano_hmm.hmm(obs)
 
@@ -231,6 +239,14 @@ def main():
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
         print(weights, accuracy)
         nano_hmm.model_fit(states)
+        for pos, aa in enumerate(weights):
+            profile[pos].append(aa)
+
+    profile = "".join(map(_most_common, profile))
+    accuracy = _hamming_dist(profile, correct_weights)
+    accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
+    print()
+    print(profile, accuracy)
 
 
 if __name__ == "__main__":
