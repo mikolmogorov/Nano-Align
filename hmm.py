@@ -68,7 +68,7 @@ class NanoHMM(object):
         plt.plot(orig_signal, label="raw signal")
         plt.plot(inferred_signal, label="fit signal")
         plt.plot(theor_signal, label="theory")
-        plt.legend()
+        plt.legend(loc="lower right")
         plt.show()
 
     def set_trans_table(self):
