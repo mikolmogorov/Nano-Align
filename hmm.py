@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
 from scipy.stats import linregress, norm
+from sklearn.svm import SVR
+from sklearn.decomposition import PCA
 
 from nanopore import get_data, theoretical_signal, get_averages
 
@@ -21,14 +23,14 @@ VolSigRegression = namedtuple("VolSigRegression", ["slope", "intercept", "std"])
 
 class NanoHMM(object):
     def __init__(self):
-        self.peptide = "ARTKQTARKSTGGKAPRKQL"
+        #self.peptide = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
         #self.peptide = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
+        self.peptide = "ARTKQTARKSTGGKAPRKQL"
         self.window = 4
-        self.average = 50
+        self.average = 20
         self.flank = 10
         self.reverse = True
-        self.regression = None
-        self.init_distr = None
+        self.svr = None
         self.trans_table = None
         self.state_to_id = {}
         self.id_to_state = {}
@@ -51,18 +53,22 @@ class NanoHMM(object):
         light_init = "-" * (self.window - 1) + "L"
         med_init = "-" * (self.window - 1) + "M"
         heavy_init = "-" * (self.window - 1) + "H"
-        self.init_distr[self.state_to_id[light_init]] = float(1) / 4
-        self.init_distr[self.state_to_id[med_init]] = float(1) / 4
-        self.init_distr[self.state_to_id[heavy_init]] = float(1) / 4
-        self.init_distr[self.state_to_id[tiny_init]] = float(1) / 4
+        self.init_distr[self.state_to_id[light_init]] = 0.25
+        self.init_distr[self.state_to_id[med_init]] = 0.25
+        self.init_distr[self.state_to_id[heavy_init]] = 0.25
+        self.init_distr[self.state_to_id[tiny_init]] = 0.25
 
         ending_states = [light_init[::-1], med_init[::-1], heavy_init[::-1], tiny_init[::-1]]
         self.ending_states = map(self.state_to_id.get, ending_states)
 
-    def model_fit(self, inferred):
-        inferred = map(lambda s: _avg_volume(self.id_to_state[s]), inferred)
-        plt.plot(inferred)
-        plt.plot(self.pep_volumes)
+    def show_fit(self, orig_signal, inferred_states):
+        inferred_signal = map(lambda s: self.svr.predict(_kmer_features(self.id_to_state[s]))[0],
+                              inferred_states)
+        theor_signal = map(lambda s: self.svr.predict(s)[0], self.pep_features)
+        plt.plot(orig_signal, label="raw signal")
+        plt.plot(inferred_signal, label="fit signal")
+        plt.plot(theor_signal, label="theory")
+        plt.legend()
         plt.show()
 
     def set_trans_table(self):
@@ -75,13 +81,13 @@ class NanoHMM(object):
                 self.trans_table[st_1][st_2] = 0.20
 
     def emission_prob(self, state_id, observation):
-        volume = _avg_volume(self.id_to_state[state_id])
-        expec_mean = self.volume_to_signal(volume)
+        feature = _kmer_features(self.id_to_state[state_id])
+        expec_mean = self.svr.predict(feature)[0]
         x = norm(expec_mean, 1).pdf(observation)
         return x
 
     def learn_emissions_distr(self, events):
-        volumes = []
+        features = []
         signals = []
         means_table = defaultdict(list)
         discrete_events = []
@@ -95,55 +101,69 @@ class NanoHMM(object):
         for event in events:
             event = _normalize(event)
             discretized = []
-            self.pep_volumes = []
+            self.pep_features = []
 
             for i in xrange(0, num_peaks):
                 kmer = flanked_peptide[i : i + self.window]
                 weights = _aa_to_weights(kmer)
-                volume = _avg_volume(weights)
+                feature = _kmer_features(weights)
 
                 signal_pos = i * peak_shift
                 left = max(0, signal_pos - peak_shift / 2)
                 right = min(len(event), signal_pos + peak_shift / 2)
                 signal = np.mean(event[left:right])
 
-                volumes.append(volume)
-                self.pep_volumes.append(volume)
+                features.append(feature)
+                self.pep_features.append(feature)
                 signals.append(signal)
                 discretized.append(signal)
-                means_table[volume].append(signal)
 
             discrete_events.append(np.array(discretized))
 
-        res = linregress(volumes, signals)
-        self.regression = VolSigRegression(res[0], res[1], res[4])
-        #plt.scatter(volumes, signals)
-        #plt.show()
-        print(res)
+        self.show_pca(features, signals)
 
-        for volume in means_table:
-            means_table[volume] = np.mean(means_table[volume])
-        self.means_table = means_table
+        self.svr = SVR()
+        self.svr.fit(features, signals)
+        print(self.svr.score(features, signals))
 
         return discrete_events
 
+    def show_pca(self, features, signals):
+        def rand_jitter(arr):
+            stdev = .01*(max(arr)-min(arr))
+            return arr + np.random.randn(len(arr)) * stdev
+
+        pca = PCA(2)
+        pca.fit(features)
+        new_x = pca.transform(features)
+
+        plt.hist(signals, bins=50)
+        plt.show()
+
+        plt.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
+                    c=signals, alpha=0.5)
+        plt.show()
+
+
+    """
     def volume_to_signal(self, volume):
         return self.regression.intercept + self.regression.slope * volume
         #if volume not in self.means_table:
         #    return self.regression.intercept + self.regression.slope * volume
         #else:
         #    return self.means_table[volume]
+    """
 
     def hmm(self, observ_seq):
         num_observ = len(observ_seq)
         num_states = len(self.init_distr)
         dp_mat = np.zeros((num_states, num_observ))
-        backtrack = np.zeros((num_states, num_observ))
+        backtrack = np.zeros((num_states, num_observ), dtype=int)
 
         for st in xrange(num_states):
             dp_mat[st][0] = (math.log(self.init_distr[st]) +
                              math.log(self.emission_prob(st, observ_seq[0])))
-            backtrack[st][0] = None
+            backtrack[st][0] = -1
 
         #filling dp matrix
         for obs in xrange(1, num_observ):
@@ -209,12 +229,22 @@ def _hamming_dist(str_1, str_2):
     return res
 
 
+def _kmer_features(kmer):
+    tiny = kmer.count("T")
+    light = kmer.count("L")
+    medium = kmer.count("M")
+    heavy = kmer.count("H")
+    return [heavy, medium, light, tiny]
+
+
+"""
 def _avg_volume(kmer):
     tiny = kmer.count("T") * 0.09
     light = kmer.count("L") * 0.12
     medium = kmer.count("M") * 0.17
     heavy = kmer.count("H") * 0.22
     return float(tiny + light + medium + heavy) / len(kmer)
+"""
 
 
 def _most_common(lst):
@@ -238,7 +268,7 @@ def main():
         accuracy = _hamming_dist(weights, correct_weights)
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
         print(weights, accuracy)
-        nano_hmm.model_fit(states)
+        nano_hmm.show_fit(obs, states)
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
