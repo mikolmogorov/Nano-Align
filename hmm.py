@@ -6,6 +6,7 @@ from string import maketrans
 from itertools import repeat, product
 from collections import namedtuple, defaultdict
 import math
+import random
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import matplotlib.pyplot as plt
@@ -83,50 +84,37 @@ class NanoHMM(object):
     def emission_prob(self, state_id, observation):
         feature = _kmer_features(self.id_to_state[state_id])
         expec_mean = self.svr.predict(feature)[0]
-        x = norm(expec_mean, 1).pdf(observation)
+        x = norm(expec_mean, 0.1).pdf(observation)
         return x
 
     def learn_emissions_distr(self, events):
         features = []
         signals = []
         means_table = defaultdict(list)
-        discrete_events = []
 
-        event_len = len(events[0])
         flanked_peptide = ("-" * (self.window - 1) + self.peptide +
                            "-" * (self.window - 1))
-        num_peaks = len(flanked_peptide) - self.window + 1
-        peak_shift = event_len / (num_peaks - 1)
+        self.num_peaks = len(self.peptide) + self.window - 1
 
         for event in events:
             event = _normalize(event)
-            discretized = []
             self.pep_features = []
 
-            for i in xrange(0, num_peaks):
+            for i in xrange(0, self.num_peaks):
                 kmer = flanked_peptide[i : i + self.window]
                 weights = _aa_to_weights(kmer)
                 feature = _kmer_features(weights)
 
-                signal_pos = i * peak_shift
-                left = max(0, signal_pos - peak_shift / 2)
-                right = min(len(event), signal_pos + peak_shift / 2)
-                signal = np.mean(event[left:right])
-
                 features.append(feature)
                 self.pep_features.append(feature)
-                signals.append(signal)
-                discretized.append(signal)
 
-            discrete_events.append(np.array(discretized))
+            discretized = _discretize(event, self.num_peaks)
+            signals.extend(discretized)
 
-        self.show_pca(features, signals)
-
+        #self.show_pca(features, signals)
         self.svr = SVR()
         self.svr.fit(features, signals)
         print(self.svr.score(features, signals))
-
-        return discrete_events
 
     def show_pca(self, features, signals):
         def rand_jitter(arr):
@@ -144,15 +132,6 @@ class NanoHMM(object):
                     c=signals, alpha=0.5)
         plt.show()
 
-
-    """
-    def volume_to_signal(self, volume):
-        return self.regression.intercept + self.regression.slope * volume
-        #if volume not in self.means_table:
-        #    return self.regression.intercept + self.regression.slope * volume
-        #else:
-        #    return self.means_table[volume]
-    """
 
     def hmm(self, observ_seq):
         num_observ = len(observ_seq)
@@ -202,7 +181,7 @@ class NanoHMM(object):
             states.append(st)
 
         states = states[::-1]
-        return states, self._decode_states(states)
+        return states, final_score, self._decode_states(states)
 
     def _decode_states(self, states):
         kmers = map(self.id_to_state.get, states)
@@ -214,6 +193,18 @@ class NanoHMM(object):
 def _normalize(signal):
     median = np.median(signal)
     return signal / median
+
+
+def _discretize(signal, num_peaks):
+    discrete = []
+    peak_shift = len(signal) / (num_peaks - 1)
+    for i in xrange(0, num_peaks):
+        signal_pos = i * peak_shift
+        left = max(0, signal_pos - peak_shift / 2)
+        right = min(len(signal), signal_pos + peak_shift / 2)
+        discrete.append(np.mean(signal[left:right]))
+
+    return discrete
 
 
 AA_SIZE_TRANS = maketrans("GASCTDPNVEQHLIMKRFYW-",
@@ -237,16 +228,6 @@ def _kmer_features(kmer):
     return [heavy, medium, light, tiny]
 
 
-"""
-def _avg_volume(kmer):
-    tiny = kmer.count("T") * 0.09
-    light = kmer.count("L") * 0.12
-    medium = kmer.count("M") * 0.17
-    heavy = kmer.count("H") * 0.22
-    return float(tiny + light + medium + heavy) / len(kmer)
-"""
-
-
 def _most_common(lst):
     return max(set(lst), key=lst.count)
 
@@ -254,23 +235,29 @@ def _most_common(lst):
 def main():
     events = get_data(sys.argv[1])
     nano_hmm = NanoHMM()
-    averages = get_averages(events, nano_hmm.average, nano_hmm.flank,
-                            nano_hmm.reverse)
+    train_events = get_averages(events, nano_hmm.average, nano_hmm.flank,
+                                nano_hmm.reverse)
+    test_events = get_averages(events, 5, nano_hmm.flank,
+                               nano_hmm.reverse)
 
-    discrete_events = nano_hmm.learn_emissions_distr(averages)
+    nano_hmm.learn_emissions_distr(train_events)
     correct_weights = _aa_to_weights(nano_hmm.peptide)
     print(correct_weights, "\n")
     profile = [[] for x in xrange(len(correct_weights))]
 
-    for obs in discrete_events:
-        states, weights = nano_hmm.hmm(obs)
+    for event in test_events:
+        event = _normalize(event)
+        event = _discretize(event, nano_hmm.num_peaks)
+        #random.shuffle(event)
+        states, score, weights = nano_hmm.hmm(event)
 
         accuracy = _hamming_dist(weights, correct_weights)
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
-        print(weights, accuracy)
-        nano_hmm.show_fit(obs, states)
+        print(weights, score, accuracy)
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
+
+        #nano_hmm.show_fit(event, states)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
