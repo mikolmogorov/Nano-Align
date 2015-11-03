@@ -19,22 +19,18 @@ from sklearn.decomposition import PCA
 from nanopore import get_data, theoretical_signal, get_averages
 
 
-VolSigRegression = namedtuple("VolSigRegression", ["slope", "intercept", "std"])
-
-
 class NanoHMM(object):
     def __init__(self):
-        #self.peptide = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+        self.peptide = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
         #self.peptide = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-        self.peptide = "ARTKQTARKSTGGKAPRKQL"
+        #self.peptide = "ARTKQTARKSTGGKAPRKQL"
         self.window = 4
-        self.average = 20
-        self.flank = 10
         self.reverse = True
         self.svr = None
         self.trans_table = None
         self.state_to_id = {}
         self.id_to_state = {}
+        self.num_peaks = len(self.peptide) + self.window - 1
 
         self.set_state_space()
         self.set_init_distr()
@@ -62,15 +58,56 @@ class NanoHMM(object):
         ending_states = [light_init[::-1], med_init[::-1], heavy_init[::-1], tiny_init[::-1]]
         self.ending_states = map(self.state_to_id.get, ending_states)
 
-    def show_fit(self, orig_signal, inferred_states):
-        inferred_signal = map(lambda s: self.svr.predict(_kmer_features(self.id_to_state[s]))[0],
-                              inferred_states)
-        theor_signal = map(lambda s: self.svr.predict(s)[0], self.pep_features)
-        plt.plot(orig_signal, label="raw signal")
-        plt.plot(inferred_signal, label="fit signal")
-        plt.plot(theor_signal, label="theory")
+    def show_fit(self, raw_signal, predicted_weights):
+        fit_signal = map(lambda s: self.svr.predict(s)[0],
+                         self.weights_to_features(predicted_weights))
+        theor_signal = map(lambda s: self.svr.predict(s)[0],
+                        self.weights_to_features(_aa_to_weights(self.peptide)))
+        plt.plot(raw_signal, "bx-", label="raw signal")
+        plt.plot(fit_signal, "gx-", label="fit signal")
+        plt.plot(theor_signal, "rx-", label="theory")
         plt.legend(loc="lower right")
         plt.show()
+
+    def compute_pvalue(self, predicted_weights):
+        fit_signal = map(lambda s: self.svr.predict(s)[0],
+                         self.weights_to_features(predicted_weights))
+        peptide_weights = _aa_to_weights(self.peptide)
+        theor_signal = map(lambda s: self.svr.predict(s)[0],
+                         self.weights_to_features(peptide_weights))
+        misspred = 0
+        score = _signal_discordance(fit_signal, theor_signal)
+        #print("True score:", score)
+        weights_list = list(peptide_weights)
+        for x in xrange(1000):
+            random.shuffle(weights_list)
+            decoy_weights = "".join(weights_list)
+            decoy_signal = map(lambda s: self.svr.predict(s)[0],
+                                self.weights_to_features(decoy_weights))
+            decoy_score = _signal_discordance(theor_signal, decoy_signal)
+            #print("Decoy score:", decoy_score)
+            if decoy_score <= score:
+                misspred += 1
+        return float(misspred) / 1000
+
+    def compute_pvalue_raw(self, fit_signal):
+        weights_list = list(_aa_to_weights(self.peptide))
+        peptide_weights = _aa_to_weights(self.peptide)
+        theor_signal = map(lambda s: self.svr.predict(s)[0],
+                         self.weights_to_features(peptide_weights))
+        misspred = 0
+        score = _signal_discordance(fit_signal, theor_signal)
+        #print("True score:", score)
+        for x in xrange(1000):
+            random.shuffle(weights_list)
+            decoy_weights = "".join(weights_list)
+            decoy_signal = map(lambda s: self.svr.predict(s)[0],
+                                self.weights_to_features(decoy_weights))
+            decoy_score = _signal_discordance(theor_signal, decoy_signal)
+            #print("Decoy score:", decoy_score)
+            if decoy_score <= score:
+                misspred += 1
+        return float(misspred) / 1000
 
     def set_trans_table(self):
         self.trans_table = np.ones((len(self.state_to_id),
@@ -87,27 +124,24 @@ class NanoHMM(object):
         x = norm(expec_mean, 0.1).pdf(observation)
         return x
 
+    def weights_to_features(self, sequence):
+        flanked_peptide = ("-" * (self.window - 1) + sequence +
+                           "-" * (self.window - 1))
+        features = []
+        for i in xrange(0, self.num_peaks):
+            kmer = flanked_peptide[i : i + self.window]
+            feature = _kmer_features(kmer)
+
+            features.append(feature)
+
+        return features
+
     def learn_emissions_distr(self, events):
         features = []
         signals = []
-        means_table = defaultdict(list)
-
-        flanked_peptide = ("-" * (self.window - 1) + self.peptide +
-                           "-" * (self.window - 1))
-        self.num_peaks = len(self.peptide) + self.window - 1
-
         for event in events:
             event = _normalize(event)
-            self.pep_features = []
-
-            for i in xrange(0, self.num_peaks):
-                kmer = flanked_peptide[i : i + self.window]
-                weights = _aa_to_weights(kmer)
-                feature = _kmer_features(weights)
-
-                features.append(feature)
-                self.pep_features.append(feature)
-
+            features.extend(self.weights_to_features(_aa_to_weights(self.peptide)))
             discretized = _discretize(event, self.num_peaks)
             signals.extend(discretized)
 
@@ -124,14 +158,11 @@ class NanoHMM(object):
         pca = PCA(2)
         pca.fit(features)
         new_x = pca.transform(features)
-
         plt.hist(signals, bins=50)
         plt.show()
-
         plt.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
                     c=signals, alpha=0.5)
         plt.show()
-
 
     def hmm(self, observ_seq):
         num_observ = len(observ_seq)
@@ -181,7 +212,7 @@ class NanoHMM(object):
             states.append(st)
 
         states = states[::-1]
-        return states, final_score, self._decode_states(states)
+        return final_score, self._decode_states(states)
 
     def _decode_states(self, states):
         kmers = map(self.id_to_state.get, states)
@@ -213,6 +244,15 @@ def _aa_to_weights(kmer):
     return kmer.translate(AA_SIZE_TRANS)
 
 
+def _signal_discordance(signal_1, signal_2):
+    #result = 0.0
+    #for a, b in zip(signal_1, signal_2):
+    #    result += (a - b) ** 2
+    regress = linregress(signal_1, signal_2)
+    #print(regress)
+    return 1 - regress[2]
+
+
 def _hamming_dist(str_1, str_2):
     res = 0
     for a, b in zip(str_1, str_2):
@@ -232,12 +272,17 @@ def _most_common(lst):
     return max(set(lst), key=lst.count)
 
 
+TRAIN_AVG = 20
+TEST_AVG = 3
+FLANK = 10
+
+
 def main():
     events = get_data(sys.argv[1])
     nano_hmm = NanoHMM()
-    train_events = get_averages(events, nano_hmm.average, nano_hmm.flank,
+    train_events = get_averages(events, TRAIN_AVG, FLANK,
                                 nano_hmm.reverse)
-    test_events = get_averages(events, 5, nano_hmm.flank,
+    test_events = get_averages(events, TEST_AVG, FLANK,
                                nano_hmm.reverse)
 
     nano_hmm.learn_emissions_distr(train_events)
@@ -245,25 +290,36 @@ def main():
     print(correct_weights, "\n")
     profile = [[] for x in xrange(len(correct_weights))]
 
+    identified = 0
+    identified_raw = 0
+    print("Sequence\t\tHMM_score\tFrac_corr\tFit_pvalue\tRaw_pvalue")
     for event in test_events:
         event = _normalize(event)
         event = _discretize(event, nano_hmm.num_peaks)
-        #random.shuffle(event)
-        states, score, weights = nano_hmm.hmm(event)
+        score, weights = nano_hmm.hmm(event)
+        p_value = nano_hmm.compute_pvalue(weights)
+        p_value_raw = nano_hmm.compute_pvalue_raw(event)
+        if p_value < 0.1:
+            identified += 1
+        if p_value_raw < 0.1:
+            identified_raw += 1
 
         accuracy = _hamming_dist(weights, correct_weights)
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
-        print(weights, score, accuracy)
+        print("{0}\t{1:5.2f}\t{2}\t{3}\t{4}".format(weights, score, accuracy,
+                                                    p_value, p_value_raw))
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        #nano_hmm.show_fit(event, states)
+        #nano_hmm.show_fit(event, weights)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
     accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
     print()
     print(profile, accuracy)
+    print("Identified:", float(identified) / len(test_events))
+    print("Identified raw:", float(identified_raw) / len(test_events))
 
 
 if __name__ == "__main__":
