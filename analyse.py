@@ -6,40 +6,13 @@ from collections import namedtuple
 import math
 import random
 
-import scipy.io as sio
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-Struct = namedtuple("Struct", ["open_pore", "dwell", "pa_blockade", "trace"])
-
-
-def get_data(filename):
-    matrix = sio.loadmat(filename)["Struct"][0][0]
-    event_traces = matrix[5]
-    num_samples = event_traces.shape[1]
-
-    events = []
-    for sample_id in xrange(num_samples):
-        dwell = float(matrix[2][0][sample_id])
-        pa_blockade = float(matrix[3][0][sample_id])
-        open_pore = float(matrix[4][0][sample_id])
-
-        trace = np.array(event_traces[:, sample_id])
-        fraction = -pa_blockade / open_pore
-        trace = 1 - trace / open_pore
-        trace -= min(trace)
-        #trace /= fraction
-        #print(np.mean(trace), fraction)
-        #if dwell > 1:
-        #    continue
-        #print(pa_blockade, open_pore)
-
-        events.append(Struct(open_pore, dwell, pa_blockade, trace))
-
-    return events
+import nanopore.signal_proc as sp
 
 
 def find_peaks(signal):
@@ -198,8 +171,8 @@ def compare_events(events, prot, align, need_smooth):
     for event_1, event_2 in zip(events[:-1], events[1:]):
         if need_smooth:
             smooth_frac = float(1) / len(prot)
-            event_1 = smooth(event_1, smooth_frac)
-            event_2 = smooth(event_2, smooth_frac)
+            event_1 = sp.smooth(event_1, smooth_frac)
+            event_2 = sp.smooth(event_2, smooth_frac)
 
         median_1 = np.median(event_1)
         median_2 = np.median(event_2)
@@ -256,7 +229,7 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
     for event in events:
         if need_smooth:
             smooth_frac = float(1) / len(prot)
-            event = smooth(event, smooth_frac)
+            event = sp.smooth(event, smooth_frac)
         #peaks = find_peaks(event.trace)
         #print("Peaks detected: {0}".format(len(peaks)))
 
@@ -288,45 +261,20 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
         plt.show()
 
 
-def get_consensus(events):
-    consensus = None
-    for event in events:
-        if consensus is None:
-            consensus = np.zeros(len(event.trace))
-        consensus += event.trace
-    return consensus / len(events)
-
-
-def smooth(signal, frac):
-    x = lowess(signal, range(len(signal)), return_sorted=False, frac=frac)
-    return x
-
-
-def get_averages(events, bin_size, flank, reverse):
-    averages = []
-    random.shuffle(events)
-    for event_bin in xrange(0, len(events) / bin_size):
-        avg_signal = get_consensus(events[event_bin*bin_size:
-                                   (event_bin+1)*bin_size])
-        if reverse:
-            avg_signal = avg_signal[::-1]
-        averages.append(avg_signal[flank:-flank])
-
-    return averages
 
 #CCL5
 #PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #CXCL1
 #PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
 #H3N
-PROT = "ARTKQTARKSTGGKAPRKQL"
+PROT = "ARTKQTARKSTGGKAPRKQL"[::-1]
 
 
 WINDOW = 4
 AVERAGE = 10
 FLANK = 10
 ALIGNMENT = False
-REVERSE = True
+REVERSE = False
 SMOOTH = True
 
 
@@ -335,11 +283,11 @@ def main():
         print("Usage: plot.py mat_file")
         return 1
 
-    events = get_data(sys.argv[1])
-    averages = get_averages(events, AVERAGE, FLANK, REVERSE)
+    events = sp.get_data(sys.argv[1])
+    averages = sp.get_averages(events, AVERAGE, FLANK, REVERSE)
 
-    plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
-    #compare_events(averages, PROT, ALIGNMENT, SMOOTH)
+    #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
+    compare_events(averages, PROT, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":
