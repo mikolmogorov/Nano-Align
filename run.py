@@ -29,7 +29,7 @@ def indetification_test(events):
     database = []
     peptide_weights = aa_to_weights(nano_hmm.peptide)
     weights_list = list(peptide_weights)
-    for _ in xrange(1000):
+    for _ in xrange(100):
         database.append("".join(weights_list))
         random.shuffle(weights_list)
     hist = defaultdict(int)
@@ -87,22 +87,6 @@ def relearn(events):
     nano_hmm.learn_emissions_distr(good_events)
 
 
-def reverse(events):
-    nano_hmm = NanoHMM(PEPTIDE, WINDOW)
-    train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
-    test_events = sp.get_averages(events, TEST_AVG, FLANK)
-    nano_hmm.learn_emissions_distr(train_events)
-
-    peptide_weights = aa_to_weights(nano_hmm.peptide)
-    for num, event in enumerate(test_events):
-        event = sp.normalize(event)
-        event = sp.discretize(event, nano_hmm.num_peaks)
-        likelihood, weights = nano_hmm.hmm(event)
-        p_value = nano_hmm.compute_pvalue(weights)
-        score = nano_hmm.score(weights, peptide_weights)
-        rev_score = nano_hmm.score(weights, peptide_weights[::-1])
-        print(num, p_value, score, rev_score, rev_score > score)
-
 
 def benchmarks(events):
     nano_hmm = NanoHMM(PEPTIDE, WINDOW)
@@ -147,17 +131,18 @@ def benchmarks(events):
 
 
 TRAIN_AVG = 20
-TEST_AVG = 5
+TEST_AVG = 10
 FLANK = 10
 WINDOW = 4
 
-PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+#PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #PEPTIDE = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-#PEPTIDE = "ARTKQTARKSTGGKAPRKQL"[::-1]
+PEPTIDE = "ARTKQTARKSTGGKAPRKQL"[::-1]
 
 
 def main():
-    events = sp.get_data(sys.argv[1])
+    events = sp.read_mat(sys.argv[1])
+    #sp.write_mat(events, "evt.mat")
     #benchmarks(events)
     indetification_test(events)
     #relearn(events)

@@ -283,7 +283,7 @@ def main():
         print("Usage: plot.py mat_file")
         return 1
 
-    events = sp.get_data(sys.argv[1])
+    events = sp.get_data_mat(sys.argv[1])
     averages = sp.get_averages(events, AVERAGE, FLANK, REVERSE)
 
     #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)

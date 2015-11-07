@@ -116,8 +116,7 @@ class NanoHMM(object):
     def emission_prob(self, state_id, observation):
         feature = _kmer_features(self.id_to_state[state_id])
         expec_mean = self.svr.predict(feature)[0]
-        x = norm(expec_mean, 0.1).pdf(observation)
-        return x
+        return 0.000001 + norm(expec_mean, 0.1).pdf(observation)
 
     def weights_to_features(self, sequence):
         flanked_peptide = ("-" * (self.window - 1) + sequence +
