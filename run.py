@@ -29,7 +29,7 @@ def indetification_test(events):
     database = []
     peptide_weights = aa_to_weights(nano_hmm.peptide)
     weights_list = list(peptide_weights)
-    for _ in xrange(100):
+    for _ in xrange(DB_SIZE):
         database.append("".join(weights_list))
         random.shuffle(weights_list)
     hist = defaultdict(int)
@@ -87,7 +87,6 @@ def relearn(events):
     nano_hmm.learn_emissions_distr(good_events)
 
 
-
 def benchmarks(events):
     nano_hmm = NanoHMM(PEPTIDE, WINDOW)
     train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
@@ -119,7 +118,7 @@ def benchmarks(events):
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        #nano_hmm.show_fit(event, weights)
+        nano_hmm.show_fit(event, weights)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
@@ -131,22 +130,21 @@ def benchmarks(events):
 
 
 TRAIN_AVG = 20
-TEST_AVG = 10
+TEST_AVG = 5
 FLANK = 10
 WINDOW = 4
+DB_SIZE = 1000
 
-#PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #PEPTIDE = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-PEPTIDE = "ARTKQTARKSTGGKAPRKQL"[::-1]
+#PEPTIDE = "ARTKQTARKSTGGKAPRKQL"[::-1]
 
 
 def main():
     events = sp.read_mat(sys.argv[1])
-    #sp.write_mat(events, "evt.mat")
-    #benchmarks(events)
-    indetification_test(events)
+    benchmarks(events)
+    #indetification_test(events)
     #relearn(events)
-    #reverse(events)
 
 
 if __name__ == "__main__":

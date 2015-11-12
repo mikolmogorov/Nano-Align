@@ -1,3 +1,4 @@
+from __future__ import print_function
 from string import maketrans
 from itertools import repeat, product
 from collections import namedtuple, defaultdict
@@ -6,6 +7,7 @@ import random
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import scipy.io as sio
 from scipy.stats import linregress, norm
@@ -48,7 +50,8 @@ class NanoHMM(object):
         self.init_distr[self.state_to_id[heavy_init]] = 0.25
         self.init_distr[self.state_to_id[tiny_init]] = 0.25
 
-        ending_states = [light_init[::-1], med_init[::-1], heavy_init[::-1], tiny_init[::-1]]
+        ending_states = [light_init[::-1], med_init[::-1],
+                         heavy_init[::-1], tiny_init[::-1]]
         self.ending_states = map(self.state_to_id.get, ending_states)
 
     def show_fit(self, raw_signal, predicted_weights):
@@ -56,9 +59,17 @@ class NanoHMM(object):
                          self.weights_to_features(predicted_weights))
         theor_signal = map(lambda s: self.svr.predict(s)[0],
                         self.weights_to_features(aa_to_weights(self.peptide)))
-        plt.plot(raw_signal, "bx-", label="raw signal")
-        plt.plot(fit_signal, "gx-", label="fit signal")
-        plt.plot(theor_signal, "rx-", label="theory")
+
+        print("Experimantal correlation:", linregress(raw_signal,
+                                                      theor_signal)[2])
+        print("Fitted correlation:", linregress(fit_signal, theor_signal)[2])
+
+        matplotlib.rcParams.update({'font.size': 16})
+        plt.plot(raw_signal, "b-", label="experimental", linewidth=1.5)
+        plt.plot(fit_signal, "g-", label="fitted", linewidth=1.5)
+        plt.plot(theor_signal, "r-", label="theoretical", linewidth=1.5)
+        plt.xlabel("AA position")
+        plt.ylabel("Normalized signal value")
         plt.legend(loc="lower right")
         plt.show()
 
