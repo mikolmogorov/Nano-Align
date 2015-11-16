@@ -118,7 +118,7 @@ def benchmarks(events):
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        nano_hmm.show_fit(event, weights)
+        #nano_hmm.show_fit(event, weights)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
@@ -142,9 +142,8 @@ PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 
 def main():
     events = sp.read_mat(sys.argv[1])
-    benchmarks(events)
-    #indetification_test(events)
-    #relearn(events)
+    #benchmarks(events)
+    indetification_test(events)
 
 
 if __name__ == "__main__":

@@ -57,6 +57,33 @@ def normalize(signal):
     return signal / median
 
 
+"""
+def normalize_local(signal, num_aa):
+    normalized = []
+    WINDOW = len(signal) / num_aa * 10
+    window_sum = sum(signal[:WINDOW / 2])
+    window_len = WINDOW / 2
+    norms = []
+    windows = []
+    for i in xrange(len(signal)):
+        local_mean = float(window_sum) / window_len
+        #print(local_mean, window_len)
+        normalized.append(signal[i] / local_mean)
+        norms.append(local_mean)
+        windows.append(window_len)
+        #move right end
+        if i + WINDOW / 2 + 1 < len(signal):
+            window_sum += signal[i + WINDOW / 2 + 1]
+            window_len += 1
+        #move left end
+        if i - WINDOW / 2 > 0:
+            window_sum -= signal[i - WINDOW / 2]
+            window_len -= 1
+
+    return np.array(normalized)
+"""
+
+
 def discretize(signal, num_peaks):
     discrete = []
     peak_shift = len(signal) / (num_peaks - 1)

@@ -181,18 +181,20 @@ def compare_events(events, prot, align, need_smooth):
 
         #scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
         #               event_2)
-        scaled_1 = event_1 / median_1
-        scaled_2 = event_2 / median_2
+        #scaled_1 = event_1 / median_1
+        #scaled_2 = event_2 / median_2
+        scaled_1 = sp.normalize(event_1)
+        scaled_2 = sp.normalize(event_2)
 
         if align:
-            reduced_1 = map(lambda i: event_1[i], xrange(0, event_len, 10))
+            reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
             reduced_2 = map(lambda i: scaled_2[i], xrange(0, event_len, 10))
             score, aligned_1, aligned_2 = alignment(reduced_1, reduced_2)
             plot_1 = aligned_1
             plot_2 = aligned_2
         else:
-            plot_1 = event_1
-            plot_2 = event_2
+            plot_1 = sp.normalize(event_1)
+            plot_2 = sp.normalize(event_2)
 
         plt.plot(plot_1)
         plt.plot(plot_2)
@@ -263,15 +265,15 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
 
 
 #CCL5
-#PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #CXCL1
 #PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
 #H3N
-PROT = "ARTKQTARKSTGGKAPRKQL"
+#PROT = "ARTKQTARKSTGGKAPRKQL"
 
 
 WINDOW = 4
-AVERAGE = 10
+AVERAGE = 5
 FLANK = 10
 ALIGNMENT = False
 REVERSE = False
@@ -286,8 +288,8 @@ def main():
     events = sp.read_mat(sys.argv[1])
     averages = sp.get_averages(events, AVERAGE, FLANK, REVERSE)
 
-    plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
-    #compare_events(averages, PROT, ALIGNMENT, SMOOTH)
+    #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
+    compare_events(averages, PROT, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":

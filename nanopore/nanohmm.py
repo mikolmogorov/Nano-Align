@@ -4,6 +4,7 @@ from itertools import repeat, product
 from collections import namedtuple, defaultdict
 import math
 import random
+import os
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import matplotlib.pyplot as plt
@@ -16,6 +17,7 @@ from sklearn.decomposition import PCA
 
 import nanopore.signal_proc as sp
 
+ROOT_DIR = os.path.dirname(__file__)
 
 class NanoHMM(object):
     def __init__(self, peptide, window):
@@ -26,14 +28,15 @@ class NanoHMM(object):
         self.state_to_id = {}
         self.id_to_state = {}
         self.num_peaks = len(self.peptide) + self.window - 1
+        self.alphabet = "MSIL"
+        self.ext_alphabet = self.alphabet + "-"
 
         self.set_state_space()
         self.set_init_distr()
-        self.set_trans_table()
+        self.set_transition_probs()
 
     def set_state_space(self):
-        all_acids = "-TLMH"
-        all_states = product(all_acids, repeat=self.window)
+        all_states = product(self.ext_alphabet, repeat=self.window)
         all_states = sorted(map("".join, all_states))
         for state_id, state in enumerate(all_states):
             self.state_to_id[state] = state_id
@@ -41,18 +44,45 @@ class NanoHMM(object):
 
     def set_init_distr(self):
         self.init_distr = np.ones(len(self.state_to_id)) * 0.000001
-        tiny_init = "-" * (self.window - 1) + "T"
-        light_init = "-" * (self.window - 1) + "L"
-        med_init = "-" * (self.window - 1) + "M"
-        heavy_init = "-" * (self.window - 1) + "H"
-        self.init_distr[self.state_to_id[light_init]] = 0.25
-        self.init_distr[self.state_to_id[med_init]] = 0.25
-        self.init_distr[self.state_to_id[heavy_init]] = 0.25
-        self.init_distr[self.state_to_id[tiny_init]] = 0.25
+        minisc_init = "-" * (self.window - 1) + "M"
+        small_init = "-" * (self.window - 1) + "S"
+        intermed_init = "-" * (self.window - 1) + "I"
+        large_init = "-" * (self.window - 1) + "L"
+        self.init_distr[self.state_to_id[minisc_init]] = 0.25
+        self.init_distr[self.state_to_id[small_init]] = 0.25
+        self.init_distr[self.state_to_id[intermed_init]] = 0.25
+        self.init_distr[self.state_to_id[large_init]] = 0.25
 
-        ending_states = [light_init[::-1], med_init[::-1],
-                         heavy_init[::-1], tiny_init[::-1]]
+        ending_states = [small_init[::-1], intermed_init[::-1],
+                         large_init[::-1], minisc_init[::-1]]
         self.ending_states = map(self.state_to_id.get, ending_states)
+
+    def set_transition_probs(self):
+        aa_freq = {}
+        for line in open(os.path.join(ROOT_DIR, "aa_freq.txt")):
+            kmer, freq = line.strip().split()
+            aa_freq[kmer] = int(freq)
+
+        self.trans_table = np.ones((len(self.state_to_id),
+                                    len(self.state_to_id))) * 0.000001
+        for state in xrange(len(self.state_to_id)):
+            kmer = self.id_to_state[state]
+            if "-" not in kmer:
+                total_freq = 0
+                for next_aa in self.alphabet:
+                    total_freq += aa_freq[kmer + next_aa]
+
+            for next_aa in self.ext_alphabet:
+                kp1mer = kmer + next_aa
+                next_kmer = kp1mer[1:]
+                next_state = self.state_to_id[next_kmer]
+                if "-" not in kp1mer:
+                    prob = float(aa_freq[kp1mer]) / total_freq
+                    self.trans_table[state][next_state] = prob
+                    #self.trans_table[state][next_state] = 0.25
+                else:
+                    self.trans_table[state][next_state] = \
+                                        float(1) / len(self.alphabet)
 
     def show_fit(self, raw_signal, predicted_weights):
         fit_signal = map(lambda s: self.svr.predict(s)[0],
@@ -115,19 +145,11 @@ class NanoHMM(object):
                 misspred += 1
         return float(misspred) / 1000
 
-    def set_trans_table(self):
-        self.trans_table = np.ones((len(self.state_to_id),
-                                    len(self.state_to_id))) * 0.000001
-        for st_1, st_2 in product(xrange(len(self.state_to_id)), repeat=2):
-            seq_1 = self.id_to_state[st_1]
-            seq_2 = self.id_to_state[st_2]
-            if seq_1[1:] == seq_2[:-1]:
-                self.trans_table[st_1][st_2] = 0.20
-
     def emission_prob(self, state_id, observation):
         feature = _kmer_features(self.id_to_state[state_id])
         expec_mean = self.svr.predict(feature)[0]
-        return 0.000001 + norm(expec_mean, 0.1).pdf(observation)
+        #return 0.000001 + norm(expec_mean, 0.01).pdf(observation)
+        return math.exp(-100 * abs(observation - expec_mean))
 
     def weights_to_features(self, sequence):
         flanked_peptide = ("-" * (self.window - 1) + sequence +
@@ -146,8 +168,8 @@ class NanoHMM(object):
         signals = []
         for event in events:
             event = sp.normalize(event)
-            features.extend(self.weights_to_features(aa_to_weights(self.peptide)))
             discretized = sp.discretize(event, self.num_peaks)
+            features.extend(self.weights_to_features(aa_to_weights(self.peptide)))
             signals.extend(discretized)
 
         #self.show_pca(features, signals)
@@ -176,15 +198,20 @@ class NanoHMM(object):
         backtrack = np.zeros((num_states, num_observ), dtype=int)
 
         for st in xrange(num_states):
-            dp_mat[st][0] = (math.log(self.init_distr[st]) +
-                             math.log(self.emission_prob(st, observ_seq[0])))
+            if self.id_to_state[st][:-1].count("-") != self.window - 1:
+                dp_mat[st][0] = float("-inf")
+            else:
+                dp_mat[st][0] = (math.log(self.init_distr[st]) +
+                                math.log(self.emission_prob(st, observ_seq[0])))
             backtrack[st][0] = -1
 
         #filling dp matrix
         for obs in xrange(1, num_observ):
             for st in xrange(num_states):
-                if (self.id_to_state[st].count("-") and
-                    self.window <= obs < num_observ - self.window):
+                #proper translocation ends
+                if ("-" in self.id_to_state[st][-obs-1:num_observ - obs] or
+                        self.id_to_state[st][:-obs-1].count("-") !=
+                        max(0, self.window - obs - 1)):
                     dp_mat[st][obs] = float("-inf")
                     continue
 
@@ -196,9 +223,12 @@ class NanoHMM(object):
                     if val > max_val:
                         max_val = val
                         max_state = prev_st
+                        tt = self.trans_table[prev_st][st]
 
+                assert dp_mat[max_state][obs-1] != float("-inf")
                 dp_mat[st][obs] = (max_val +
                             math.log(self.emission_prob(st, observ_seq[obs])))
+                #print(tt, self.emission_prob(st, observ_seq[obs]))
                 backtrack[st][obs] = max_state
 
         #final state
@@ -227,14 +257,14 @@ class NanoHMM(object):
 
 
 def _kmer_features(kmer):
-    tiny = kmer.count("T")
-    light = kmer.count("L")
-    medium = kmer.count("M")
-    heavy = kmer.count("H")
-    return [heavy, medium, light, tiny]
+    miniscule = kmer.count("M")
+    small = kmer.count("S")
+    intermediate = kmer.count("I")
+    large = kmer.count("L")
+    return [large, intermediate, small, miniscule]
 
 
-AA_SIZE_TRANS = maketrans("GASCTDPNVEQHLIMKRFYW-",
-                          "TTTTLLLLLMMMMMMMHHHH-")
+AA_SIZE_TRANS = maketrans("GASCUTDPNVBEQZHLIMKXRFYW-",
+                          "MMMMMSSSSSSIIIIIIIIILLLL-")
 def aa_to_weights(kmer):
     return kmer.translate(AA_SIZE_TRANS)
