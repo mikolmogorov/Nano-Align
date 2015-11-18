@@ -3,7 +3,10 @@ import scipy.io as sio
 import numpy as np
 import random
 from copy import deepcopy
+
 from statsmodels.nonparametric.smoothers_lowess import lowess
+from sklearn.cluster import AffinityPropagation
+from sklearn.cluster import KMeans
 
 Struct = namedtuple("Struct", ["fileTag", "StartPoint", "ms_Dwell",
                                "pA_Blockade", "openPore", "eventTrace",
@@ -11,30 +14,33 @@ Struct = namedtuple("Struct", ["fileTag", "StartPoint", "ms_Dwell",
 Event = namedtuple("Event", ["trace", "struct"])
 
 def read_mat(filename):
-    matrix = sio.loadmat(filename)["Struct"][0][0]
-    event_traces = matrix[5]
+    mat_file = sio.loadmat(filename)
+    struct = mat_file["Struct"][0][0]
+    peptide = str(mat_file["Peptide"][0])
+    event_traces = struct[5]
     num_samples = event_traces.shape[1]
 
     events = []
     for sample_id in xrange(num_samples):
-        file_tag = matrix[0][sample_id]
-        start_point = float(matrix[1][0][sample_id])
-        dwell = float(matrix[2][0][sample_id])
-        pa_blockade = float(matrix[3][0][sample_id])
-        open_pore = float(matrix[4][0][sample_id])
-        correlation = float(matrix[6][sample_id][0])
+        file_tag = struct[0][sample_id]
+        start_point = float(struct[1][0][sample_id])
+        dwell = float(struct[2][0][sample_id])
+        pa_blockade = float(struct[3][0][sample_id])
+        open_pore = float(struct[4][0][sample_id])
+        correlation = float(struct[6][sample_id][0])
 
         trace = np.array(event_traces[:, sample_id])
         norm_trace = 1 - trace / open_pore
         norm_trace -= min(norm_trace)
 
-        struct = Struct(file_tag, start_point, dwell, pa_blockade, open_pore,
-                        trace, correlation)
-        events.append(Event(norm_trace, struct))
-    return events
+        out_struct = Struct(file_tag, start_point, dwell, pa_blockade,
+                            open_pore, trace, correlation)
+        events.append(Event(norm_trace, out_struct))
+
+    return events, peptide
 
 
-def write_mat(events, filename):
+def write_mat(events, peptide, filename):
     """
     Don't ask why!
     """
@@ -49,7 +55,8 @@ def write_mat(events, filename):
                       np.array([pa_blockade_arr]), np.array([open_pore_arr]),
                       np.transpose(event_trace_arr),
                       np.transpose(np.array([corr_arr]))])
-    sio.savemat(filename, {"Struct" : np.array([[matrix]])})
+    sio.savemat(filename, {"Struct" : np.array([[matrix]]),
+                           "Peptide" : peptide})
 
 
 def normalize(signal):
@@ -82,6 +89,29 @@ def normalize_local(signal, num_aa):
 
     return np.array(normalized)
 """
+
+def cluster_events(events):
+    NUM_FEATURES = 1000
+    feature_mat = []
+    for event in events:
+        features = sp.discretize(event.trace[FLANK:-FLANK], NUM_FEATURES)
+        feature_mat.append(features)
+
+    feature_mat = np.array(feature_mat)
+    #labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
+    labels = KMeans(n_clusters=len(events) / 5).fit_predict(feature_mat)
+
+    hist = defaultdict(int)
+    for l in labels:
+        hist[l] += 1
+
+    consensuses = defaultdict(lambda: np.zeros(len(events[0].trace) - 2 * FLANK))
+    for event, clust_id in enumerate(labels):
+        consensuses[clust_id] += events[event].trace[FLANK:-FLANK]
+    for cust_id, cons in consensuses.items():
+        cons /= hist[clust_id]
+
+    return consensuses.values()
 
 
 def discretize(signal, num_peaks):

@@ -6,8 +6,8 @@ import nanopore.signal_proc as sp
 from nanopore.nanohmm import NanoHMM, aa_to_weights
 
 
-def reverse(events):
-    nano_hmm = NanoHMM(PEPTIDE, WINDOW)
+def reverse(events, peptide):
+    nano_hmm = NanoHMM(peptide)
     train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
     nano_hmm.learn_emissions_distr(train_events)
 
@@ -38,19 +38,18 @@ def reverse(events):
     return new_events
 
 
-TRAIN_AVG = 20
-FLANK = 10
-WINDOW = 4
+TRAIN_AVG = 1
+FLANK = 50
 
-PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+#PEPTIDE = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #PEPTIDE = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
 #PEPTIDE = "ARTKQTARKSTGGKAPRKQL"[::-1]
 
 
 def main():
-    events = sp.read_mat(sys.argv[1])
-    rev_events = reverse(events)
-    sp.write_mat(rev_events, sys.argv[2])
+    events, peptide = sp.read_mat(sys.argv[1])
+    rev_events = reverse(events, peptide)
+    sp.write_mat(events, peptide, sys.argv[2])
 
 
 if __name__ == "__main__":

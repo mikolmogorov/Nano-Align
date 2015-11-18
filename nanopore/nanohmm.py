@@ -19,10 +19,14 @@ import nanopore.signal_proc as sp
 
 ROOT_DIR = os.path.dirname(__file__)
 
+def divergence(sig_1, sig_2):
+    return -sum(map(lambda (s1, s2): (s1 - s2) ** 2,
+                    zip(sig_1, sig_2)))
+
 class NanoHMM(object):
-    def __init__(self, peptide, window):
+    def __init__(self, peptide):
         self.peptide = peptide
-        self.window = window
+        self.window = 4
         self.svr = None
         self.trans_table = None
         self.state_to_id = {}
@@ -34,6 +38,7 @@ class NanoHMM(object):
         self.set_state_space()
         self.set_init_distr()
         self.set_transition_probs()
+        self.svr_cache = {}
 
     def set_state_space(self):
         all_states = product(self.ext_alphabet, repeat=self.window)
@@ -79,7 +84,6 @@ class NanoHMM(object):
                 if "-" not in kp1mer:
                     prob = float(aa_freq[kp1mer]) / total_freq
                     self.trans_table[state][next_state] = prob
-                    #self.trans_table[state][next_state] = 0.25
                 else:
                     self.trans_table[state][next_state] = \
                                         float(1) / len(self.alphabet)
@@ -90,9 +94,8 @@ class NanoHMM(object):
         theor_signal = map(lambda s: self.svr.predict(s)[0],
                         self.weights_to_features(aa_to_weights(self.peptide)))
 
-        print("Experimantal correlation:", linregress(raw_signal,
-                                                      theor_signal)[2])
-        print("Fitted correlation:", linregress(fit_signal, theor_signal)[2])
+        print("Experimantal score:", divergence(raw_signal, theor_signal))
+        print("Fitted score:", divergence(fit_signal, theor_signal))
 
         matplotlib.rcParams.update({'font.size': 16})
         plt.plot(raw_signal, "b-", label="experimental", linewidth=1.5)
@@ -104,11 +107,14 @@ class NanoHMM(object):
         plt.show()
 
     def score(self, aa_weights_1, aa_weights_2):
-        signal_1 = map(lambda s: self.svr.predict(s)[0],
+        signal_1 = map(lambda s: self.svr_predict(s),
                     self.weights_to_features(aa_weights_1))
-        signal_2 = map(lambda s: self.svr.predict(s)[0],
+        signal_2 = map(lambda s: self.svr_predict(s),
                     self.weights_to_features(aa_weights_2))
-        return linregress(signal_1, signal_2)[2]
+        return divergence(signal_1, signal_2)
+        #return -sum(map(lambda (s1, s2): (s1 - s2) ** 2,
+        #                zip(signal_1, signal_2)))
+        #return linregress(signal_1, signal_2)[2]
 
     def compute_pvalue(self, predicted_weights):
         peptide_weights = aa_to_weights(self.peptide)
@@ -131,14 +137,14 @@ class NanoHMM(object):
 
         weights_list = list(aa_to_weights(self.peptide))
         peptide_weights = aa_to_weights(self.peptide)
-        theor_signal = map(lambda s: self.svr.predict(s)[0],
+        theor_signal = map(lambda s: self.svr_predict(s),
                          self.weights_to_features(peptide_weights))
         misspred = 0
         score = _signal_discordance(fit_signal, theor_signal)
         for x in xrange(1000):
             random.shuffle(weights_list)
             decoy_weights = "".join(weights_list)
-            decoy_signal = map(lambda s: self.svr.predict(s)[0],
+            decoy_signal = map(lambda s: self.svr_predict(s),
                                 self.weights_to_features(decoy_weights))
             decoy_score = _signal_discordance(theor_signal, decoy_signal)
             if decoy_score <= score:
@@ -147,7 +153,7 @@ class NanoHMM(object):
 
     def emission_prob(self, state_id, observation):
         feature = _kmer_features(self.id_to_state[state_id])
-        expec_mean = self.svr.predict(feature)[0]
+        expec_mean = self.svr_predict(feature)
         #return 0.000001 + norm(expec_mean, 0.01).pdf(observation)
         return math.exp(-100 * abs(observation - expec_mean))
 
@@ -172,24 +178,37 @@ class NanoHMM(object):
             features.extend(self.weights_to_features(aa_to_weights(self.peptide)))
             signals.extend(discretized)
 
-        #self.show_pca(features, signals)
         self.svr = SVR()
         self.svr.fit(features, signals)
-        print(self.svr.score(features, signals))
 
-    def show_pca(self, features, signals):
+    def svr_predict(self, feature):
+        feature = tuple(feature)
+        if feature not in self.svr_cache:
+            self.svr_cache[feature] = self.svr.predict(feature)[0]
+        return self.svr_cache[feature]
+
+    def score_svm(self, events):
         def rand_jitter(arr):
             stdev = .01*(max(arr)-min(arr))
             return arr + np.random.randn(len(arr)) * stdev
 
-        pca = PCA(2)
-        pca.fit(features)
-        new_x = pca.transform(features)
-        plt.hist(signals, bins=50)
-        plt.show()
-        plt.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
-                    c=signals, alpha=0.5)
-        plt.show()
+        features = []
+        signals = []
+        for event in events:
+            event = sp.normalize(event)
+            discretized = sp.discretize(event, self.num_peaks)
+            features.extend(self.weights_to_features(aa_to_weights(self.peptide)))
+            signals.extend(discretized)
+
+        print(self.svr.score(features, signals))
+        #pca = PCA(2)
+        #pca.fit(features)
+        #new_x = pca.transform(features)
+        #plt.hist(signals, bins=50)
+        #plt.show()
+        #plt.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
+        #            c=signals, alpha=0.5)
+        #plt.show()
 
     def hmm(self, observ_seq):
         num_observ = len(observ_seq)

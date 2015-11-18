@@ -265,7 +265,7 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
 
 
 #CCL5
-PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
+#PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
 #CXCL1
 #PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
 #H3N
@@ -285,11 +285,11 @@ def main():
         print("Usage: plot.py mat_file")
         return 1
 
-    events = sp.read_mat(sys.argv[1])
+    events, peptide = sp.read_mat(sys.argv[1])
     averages = sp.get_averages(events, AVERAGE, FLANK, REVERSE)
 
-    #plot_blockades(averages, PROT, WINDOW, ALIGNMENT, SMOOTH)
-    compare_events(averages, PROT, ALIGNMENT, SMOOTH)
+    #plot_blockades(averages, peptide, WINDOW, ALIGNMENT, SMOOTH)
+    compare_events(averages, peptide, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":
