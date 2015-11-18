@@ -19,9 +19,10 @@ import nanopore.signal_proc as sp
 
 ROOT_DIR = os.path.dirname(__file__)
 
-def divergence(sig_1, sig_2):
+def divergence(signal_1, signal_2):
     return -sum(map(lambda (s1, s2): (s1 - s2) ** 2,
-                    zip(sig_1, sig_2)))
+                    zip(signal_1, signal_2)))
+    #return linregress(signal_1, signal_2)[2]
 
 class NanoHMM(object):
     def __init__(self, peptide):
@@ -112,9 +113,6 @@ class NanoHMM(object):
         signal_2 = map(lambda s: self.svr_predict(s),
                     self.weights_to_features(aa_weights_2))
         return divergence(signal_1, signal_2)
-        #return -sum(map(lambda (s1, s2): (s1 - s2) ** 2,
-        #                zip(signal_1, signal_2)))
-        #return linregress(signal_1, signal_2)[2]
 
     def compute_pvalue(self, predicted_weights):
         peptide_weights = aa_to_weights(self.peptide)

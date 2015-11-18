@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import scipy.io as sio
 import numpy as np
 import random
@@ -90,11 +90,11 @@ def normalize_local(signal, num_aa):
     return np.array(normalized)
 """
 
-def cluster_events(events):
+def cluster_events(events, flank):
     NUM_FEATURES = 1000
     feature_mat = []
     for event in events:
-        features = sp.discretize(event.trace[FLANK:-FLANK], NUM_FEATURES)
+        features = discretize(event.trace[flank:-flank], NUM_FEATURES)
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
@@ -105,9 +105,9 @@ def cluster_events(events):
     for l in labels:
         hist[l] += 1
 
-    consensuses = defaultdict(lambda: np.zeros(len(events[0].trace) - 2 * FLANK))
+    consensuses = defaultdict(lambda: np.zeros(len(events[0].trace) - 2 * flank))
     for event, clust_id in enumerate(labels):
-        consensuses[clust_id] += events[event].trace[FLANK:-FLANK]
+        consensuses[clust_id] += events[event].trace[flank:-flank]
     for cust_id, cons in consensuses.items():
         cons /= hist[clust_id]
 
