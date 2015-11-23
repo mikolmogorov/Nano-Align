@@ -25,8 +25,8 @@ def _most_common(lst):
 def benchmarks(events, peptide):
     nano_hmm = NanoHMM(peptide)
     train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
-    test_events = sp.get_averages(events, TEST_AVG, FLANK)
-    #test_events = sp.cluster_events(events, FLANK)
+    #test_events = sp.get_averages(events, TEST_AVG, FLANK)
+    test_events = sp.cluster_events(events, FLANK)
 
     nano_hmm.learn_emissions_distr(train_events)
     nano_hmm.score_svm(test_events)

@@ -60,8 +60,9 @@ def write_mat(events, peptide, filename):
 
 
 def normalize(signal):
-    median = np.median(signal)
-    return signal / median
+    median = np.mean(signal - min(signal))
+    std = np.std(signal)
+    return (signal - min(signal)) / median
 
 
 """
@@ -98,20 +99,13 @@ def cluster_events(events, flank):
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
-    #labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
-    labels = KMeans(n_clusters=len(events) / 5).fit_predict(feature_mat)
+    labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
+    #labels = KMeans(n_clusters=len(events) / 5).fit_predict(feature_mat)
 
-    hist = defaultdict(int)
-    for l in labels:
-        hist[l] += 1
-
-    consensuses = defaultdict(lambda: np.zeros(len(events[0].trace) - 2 * flank))
+    by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
-        consensuses[clust_id] += events[event].trace[flank:-flank]
-    for cust_id, cons in consensuses.items():
-        cons /= hist[clust_id]
-
-    return consensuses.values()
+        by_cluster[clust_id].append(events[event])
+    return map(lambda e: get_consensus(e, flank), by_cluster.values())
 
 
 def discretize(signal, num_peaks):
@@ -121,18 +115,15 @@ def discretize(signal, num_peaks):
         signal_pos = i * peak_shift
         left = max(0, signal_pos - peak_shift / 2)
         right = min(len(signal), signal_pos + peak_shift / 2)
-        discrete.append(np.mean(signal[left:right]))
+        discrete.append(np.median(signal[left:right]))
 
     return discrete
 
 
-def get_consensus(events):
-    consensus = None
-    for event in events:
-        if consensus is None:
-            consensus = np.zeros(len(event.trace))
-        consensus += event.trace
-    return consensus / len(events)
+def get_consensus(events, flank):
+    matrix = np.array(map(lambda e: e.trace[flank:-flank], events))
+    medians = np.mean(matrix, axis=0)
+    return medians
 
 
 def smooth(signal, frac):
@@ -141,14 +132,15 @@ def smooth(signal, frac):
 
 
 def get_averages(events, bin_size, flank, reverse=False):
+    print(len(events))
     averages = []
     events = deepcopy(events)
     random.shuffle(events)
     for event_bin in xrange(0, len(events) / bin_size):
         avg_signal = get_consensus(events[event_bin*bin_size:
-                                   (event_bin+1)*bin_size])
+                                   (event_bin+1)*bin_size], flank)
         if reverse:
             avg_signal = avg_signal[::-1]
-        averages.append(avg_signal[flank:-flank])
+        averages.append(avg_signal)
 
     return averages

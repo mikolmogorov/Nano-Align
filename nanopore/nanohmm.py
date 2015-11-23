@@ -19,7 +19,7 @@ import nanopore.signal_proc as sp
 
 ROOT_DIR = os.path.dirname(__file__)
 
-def divergence(signal_1, signal_2):
+def _signal_discordance(signal_1, signal_2):
     return -sum(map(lambda (s1, s2): (s1 - s2) ** 2,
                     zip(signal_1, signal_2)))
     #return linregress(signal_1, signal_2)[2]
@@ -95,12 +95,34 @@ class NanoHMM(object):
         theor_signal = map(lambda s: self.svr.predict(s)[0],
                         self.weights_to_features(aa_to_weights(self.peptide)))
 
-        print("Experimantal score:", divergence(raw_signal, theor_signal))
-        print("Fitted score:", divergence(fit_signal, theor_signal))
+        print("Experimantal score:",
+              _signal_discordance(raw_signal, theor_signal))
+        print("Fitted score:", _signal_discordance(fit_signal, theor_signal))
 
         matplotlib.rcParams.update({'font.size': 16})
         plt.plot(raw_signal, "b-", label="experimental", linewidth=1.5)
         plt.plot(fit_signal, "g-", label="fitted", linewidth=1.5)
+        plt.plot(theor_signal, "r-", label="theoretical", linewidth=1.5)
+        plt.xlabel("AA position")
+        plt.ylabel("Normalized signal value")
+        plt.legend(loc="lower right")
+        plt.show()
+
+    def show_target_vs_decoy(self, target_weights, decoy_weights):
+        target_signal = map(lambda s: self.svr.predict(s)[0],
+                         self.weights_to_features(target_weights))
+        decoy_signal = map(lambda s: self.svr.predict(s)[0],
+                        self.weights_to_features(aa_to_weights(decoy_weights)))
+        theor_signal = map(lambda s: self.svr.predict(s)[0],
+                        self.weights_to_features(aa_to_weights(self.peptide)))
+
+        print("Target score:",
+              _signal_discordance(target_signal, theor_signal))
+        print("Decoy score:", _signal_discordance(target_signal, decoy_signal))
+
+        matplotlib.rcParams.update({'font.size': 16})
+        plt.plot(target_signal, "b-", label="target", linewidth=1.5)
+        plt.plot(decoy_signal, "g-", label="decoy", linewidth=1.5)
         plt.plot(theor_signal, "r-", label="theoretical", linewidth=1.5)
         plt.xlabel("AA position")
         plt.ylabel("Normalized signal value")
@@ -112,7 +134,7 @@ class NanoHMM(object):
                     self.weights_to_features(aa_weights_1))
         signal_2 = map(lambda s: self.svr_predict(s),
                     self.weights_to_features(aa_weights_2))
-        return divergence(signal_1, signal_2)
+        return _signal_discordance(signal_1, signal_2)
 
     def compute_pvalue(self, predicted_weights):
         peptide_weights = aa_to_weights(self.peptide)
@@ -123,16 +145,12 @@ class NanoHMM(object):
             random.shuffle(weights_list)
             decoy_weights = "".join(weights_list)
 
-            decoy_score = self.score(decoy_weights, peptide_weights)
+            decoy_score = self.score(decoy_weights, predicted_weights)
             if decoy_score > score:
                 misspred += 1
         return float(misspred) / 1000
 
     def compute_pvalue_raw(self, fit_signal):
-        def _signal_discordance(signal_1, signal_2):
-            regress = linregress(signal_1, signal_2)
-            return 1 - regress[2]
-
         weights_list = list(aa_to_weights(self.peptide))
         peptide_weights = aa_to_weights(self.peptide)
         theor_signal = map(lambda s: self.svr_predict(s),
@@ -176,7 +194,7 @@ class NanoHMM(object):
             features.extend(self.weights_to_features(aa_to_weights(self.peptide)))
             signals.extend(discretized)
 
-        self.svr = SVR()
+        self.svr = SVR(kernel="rbf")
         self.svr.fit(features, signals)
 
     def svr_predict(self, feature):

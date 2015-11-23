@@ -13,8 +13,8 @@ import nanopore.signal_proc as sp
 def indetification_test(events, peptide, db_file):
     nano_hmm = NanoHMM(peptide)
     train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
-    test_events = sp.get_averages(events, TEST_AVG, FLANK)
-    #test_events = sp.cluster_events(events, FLANK)
+    #test_events = sp.get_averages(events, TEST_AVG, FLANK)
+    test_events = sp.cluster_events(events, FLANK)
     nano_hmm.learn_emissions_distr(train_events)
     nano_hmm.score_svm(test_events)
 
@@ -39,6 +39,7 @@ def indetification_test(events, peptide, db_file):
         chosen_prot = 0
         for prot_id, prot_seq in database.items():
             score = nano_hmm.score(prot_seq, weights)
+            #nano_hmm.show_target_vs_decoy(weights, prot_seq)
             if score > max_score:
                 max_score = score
                 chosen_prot = prot_id

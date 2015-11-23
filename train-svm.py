@@ -17,7 +17,7 @@ import nanopore.signal_proc as sp
 
 
 def main():
-    events = sp.read_mat(sys.argv[1])
+    events, prot = sp.read_mat(sys.argv[1])
     feature_mat = []
     for event in events:
         features = sp.discretize(event.trace, 1000)
@@ -31,21 +31,15 @@ def main():
     labels = kmeans.fit_predict(feature_mat)
     #random.shuffle(labels)
 
-    hist = defaultdict(int)
-    for l in labels:
-        hist[l] += 1
-    for l in sorted(hist):
-        print(l, hist[l])
-
-    consensuses = defaultdict(lambda: np.zeros(len(events[0].trace)))
+    by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
-        consensuses[clust_id] += events[event].trace
-    for cust_id, cons in consensuses.items():
-        cons /= hist[clust_id]
+        by_cluster[clust_id].append(events[event])
 
-    for clust_id, cons in consensuses.items():
-        print(hist[clust_id])
-        plt.plot(cons[20:-20])
+    for clust_id, events in by_cluster.items():
+        print(len(events))
+        consensus = sp.get_consensus(events, 50)
+        consensus = sp.normalize(consensus)
+        plt.plot(consensus)
         plt.show()
 
 
