@@ -10,7 +10,8 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
-from statsmodels.nonparametric.smoothers_lowess import lowess
+from scipy.spatial import distance
+from scipy.stats import spearmanr
 
 import nanopore.signal_proc as sp
 
@@ -174,17 +175,20 @@ def compare_events(events, prot, align, need_smooth):
             event_1 = sp.smooth(event_1, smooth_frac)
             event_2 = sp.smooth(event_2, smooth_frac)
 
-        median_1 = np.median(event_1)
-        median_2 = np.median(event_2)
-        std_1 = np.std(event_1)
-        std_2 = np.std(event_2)
+        #median_1 = np.median(event_1)
+        #median_2 = np.median(event_2)
+        #std_1 = np.std(event_1)
+        #std_2 = np.std(event_2)
+        #scaled_1 = (event_1 - median_1) / std_1
+        #scaled_2 = (event_2 - median_2) / std_2
+        scaled_1 = sp.normalize(event_1, len(prot))
+        scaled_2 = sp.normalize(event_2, len(prot))
 
-        #scaled_2 = map(lambda t: (t - median_2) * (median_1 / median_2) + median_1,
-        #               event_2)
-        #scaled_1 = event_1 / median_1
-        #scaled_2 = event_2 / median_2
-        scaled_1 = sp.normalize(event_1)
-        scaled_2 = sp.normalize(event_2)
+        scaled_1 = sp.discretize(scaled_1, len(prot))
+        scaled_2 = sp.discretize(scaled_2, len(prot))
+
+        #print(np.sign(scaled_1))
+        #print(np.sign(scaled_2))
 
         if align:
             reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
@@ -193,12 +197,16 @@ def compare_events(events, prot, align, need_smooth):
             plot_1 = aligned_1
             plot_2 = aligned_2
         else:
-            plot_1 = sp.normalize(event_1)
-            plot_2 = sp.normalize(event_2)
+            plot_1 = scaled_1
+            plot_2 = scaled_2
 
-        plt.plot(plot_1)
-        plt.plot(plot_2)
+        print("Correlation", spearmanr(plot_1, plot_2))
+        plt.plot(np.repeat(plot_1, 2))
+        plt.plot(np.repeat(plot_2, 2))
         plt.show()
+
+        #plt.scatter(plot_1, plot_2)
+        #plt.show()
 
 def scale_events(main_signal, scaled_signal):
     median_main = np.median(main_signal)
@@ -264,17 +272,9 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
 
 
 
-#CCL5
-#PROT = "SPYSSDTTPCCFAYIARPLPRAHIKEYFYTSGKCSNPAVVFVTRKNRQVCANPEKKWVREYINSLEMS"
-#CXCL1
-#PROT = "ASVATELRCQCLQTLQGIHPKNIQSVNVKSPGPHCAQTEVIATLKNGRKACLNPASPIVKKIIEKMLNSDKSN"
-#H3N
-#PROT = "ARTKQTARKSTGGKAPRKQL"
-
-
 WINDOW = 4
-AVERAGE = 5
-FLANK = 10
+AVERAGE = 10
+FLANK = 50
 ALIGNMENT = False
 REVERSE = False
 SMOOTH = True
@@ -286,7 +286,10 @@ def main():
         return 1
 
     events, peptide = sp.read_mat(sys.argv[1])
-    averages = sp.get_averages(events, AVERAGE, FLANK, REVERSE)
+    #clusters = sp.cluster_events(events, FLANK)
+    #averages = map(lambda c: c.consensus, clusters)
+    averages = map(lambda c: c.concensus,
+                   sp.get_averages(events, AVERAGE, FLANK, REVERSE))
 
     #plot_blockades(averages, peptide, WINDOW, ALIGNMENT, SMOOTH)
     compare_events(averages, peptide, ALIGNMENT, SMOOTH)

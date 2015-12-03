@@ -12,6 +12,8 @@ Struct = namedtuple("Struct", ["fileTag", "StartPoint", "ms_Dwell",
                                "pA_Blockade", "openPore", "eventTrace",
                                "correlation"])
 Event = namedtuple("Event", ["trace", "struct"])
+EventCluster = namedtuple("EventCluster", ["consensus", "events"])
+
 
 def read_mat(filename):
     mat_file = sio.loadmat(filename)
@@ -30,8 +32,9 @@ def read_mat(filename):
         correlation = float(struct[6][sample_id][0])
 
         trace = np.array(event_traces[:, sample_id])
-        norm_trace = 1 - trace / open_pore
-        norm_trace -= min(norm_trace)
+        #norm_trace = 1 - trace / open_pore
+        norm_trace = trace - open_pore
+        #norm_trace -= min(norm_trace)
 
         out_struct = Struct(file_tag, start_point, dwell, pa_blockade,
                             open_pore, trace, correlation)
@@ -59,16 +62,20 @@ def write_mat(events, peptide, filename):
                            "Peptide" : peptide})
 
 
-def normalize(signal):
-    median = np.mean(signal - min(signal))
-    std = np.std(signal)
-    return (signal - min(signal)) / median
+def normalize(signal, x):
+    return signal
+    #return signal - min(signal)
+    #return (signal - min(signal)) / (max(signal) - min(signal))
+    #signal -= min(signal)
+    #return -signal / np.mean(signal)
+    return (signal - np.mean(signal)) / np.std(signal)
 
 
 """
-def normalize_local(signal, num_aa):
+def normalize(signal, num_aa):
+    #signal -= min(signal)
     normalized = []
-    WINDOW = len(signal) / num_aa * 10
+    WINDOW = len(signal) / 2
     window_sum = sum(signal[:WINDOW / 2])
     window_len = WINDOW / 2
     norms = []
@@ -91,6 +98,7 @@ def normalize_local(signal, num_aa):
     return np.array(normalized)
 """
 
+
 def cluster_events(events, flank):
     NUM_FEATURES = 1000
     feature_mat = []
@@ -105,17 +113,23 @@ def cluster_events(events, flank):
     by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
         by_cluster[clust_id].append(events[event])
-    return map(lambda e: get_consensus(e, flank), by_cluster.values())
+
+    clusters = []
+    for cl_events in by_cluster.values():
+        clusters.append(EventCluster(get_consensus(cl_events, flank),
+                                     cl_events))
+    return clusters
 
 
 def discretize(signal, num_peaks):
     discrete = []
     peak_shift = len(signal) / (num_peaks - 1)
     for i in xrange(0, num_peaks):
-        signal_pos = i * peak_shift
-        left = max(0, signal_pos - peak_shift / 2)
-        right = min(len(signal), signal_pos + peak_shift / 2)
-        discrete.append(np.median(signal[left:right]))
+        signal_pos = i * (peak_shift - 1)
+        discrete.append(signal[signal_pos])
+        #left = max(0, signal_pos - peak_shift / 2)
+        #right = min(len(signal), signal_pos + peak_shift / 2)
+        #discrete.append(np.mean(signal[left:right]))
 
     return discrete
 
@@ -131,16 +145,13 @@ def smooth(signal, frac):
     return x
 
 
-def get_averages(events, bin_size, flank, reverse=False):
-    print(len(events))
+def get_averages(events, bin_size, flank):
     averages = []
     events = deepcopy(events)
     random.shuffle(events)
     for event_bin in xrange(0, len(events) / bin_size):
-        avg_signal = get_consensus(events[event_bin*bin_size:
-                                   (event_bin+1)*bin_size], flank)
-        if reverse:
-            avg_signal = avg_signal[::-1]
-        averages.append(avg_signal)
+        cl_events = events[event_bin*bin_size : (event_bin+1)*bin_size]
+        avg_signal = get_consensus(cl_events, flank)
+        averages.append(EventCluster(avg_signal, cl_events))
 
     return averages

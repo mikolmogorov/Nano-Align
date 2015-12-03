@@ -22,58 +22,54 @@ def _most_common(lst):
     return max(set(lst), key=lst.count)
 
 
-def benchmarks(events, peptide):
-    nano_hmm = NanoHMM(peptide)
+def benchmarks(events, peptide, svr_file):
+    nano_hmm = NanoHMM(len(peptide), svr_file)
     train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
-    #test_events = sp.get_averages(events, TEST_AVG, FLANK)
-    test_events = sp.cluster_events(events, FLANK)
+    clusters = sp.get_averages(events, TEST_AVG, FLANK)
+    #clusters = sp.cluster_events(events, FLANK)
 
-    nano_hmm.learn_emissions_distr(train_events)
-    nano_hmm.score_svm(test_events)
-    correct_weights = aa_to_weights(nano_hmm.peptide)
+    correct_weights = aa_to_weights(peptide)
     print(correct_weights, "\n")
     profile = [[] for x in xrange(len(correct_weights))]
 
     identified = 0
-    identified_raw = 0
-    print("Sequence\t\tHMM_score\tFrac_corr\tFit_pvalue\tRaw_pvalue")
-    for event in test_events:
-        event = sp.normalize(event)
-        event = sp.discretize(event, nano_hmm.num_peaks)
-        score, weights = nano_hmm.hmm(event)
-        p_value = nano_hmm.compute_pvalue(weights)
-        p_value_raw = nano_hmm.compute_pvalue_raw(event)
+    print("Size\tSequence\tHMM_score\tFrac_corr\tFit_pvalue")
+    for cluster in clusters:
+        score, weights = nano_hmm.hmm(cluster.consensus)
+        p_value = nano_hmm.compute_pvalue(weights, peptide)
+        p_value_raw = nano_hmm.compute_pvalue_raw(cluster.consensus, peptide)
         if p_value < 0.01:
             identified += 1
-        if p_value_raw < 0.01:
-            identified_raw += 1
 
         accuracy = _hamming_dist(weights, correct_weights)
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
-        print("{0}\t{1:5.2f}\t{2}\t{3}\t{4}".format(weights, score, accuracy,
-                                                    p_value, p_value_raw))
+        print("{0}\t{1}\t{2:5.2f}\t{3:5.2f}\t{4}\t{5}"
+                    .format(len(cluster.events), weights, score, accuracy,
+                            p_value, p_value_raw))
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        nano_hmm.show_fit(event, weights)
+        discr_signal = sp.discretize(sp.normalize(cluster.consensus,
+                                                  nano_hmm.num_peaks),
+                                     nano_hmm.num_peaks)
+        nano_hmm.show_fit(discr_signal, weights, peptide)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
     accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
     print()
     print(profile, accuracy)
-    print("Identified:", float(identified) / len(test_events))
-    print("Identified raw:", float(identified_raw) / len(test_events))
+    print("Identified:", float(identified) / len(clusters))
 
 
 TRAIN_AVG = 1
-TEST_AVG = 5
+TEST_AVG = 10
 FLANK = 50
 
 
 def main():
     events, peptide = sp.read_mat(sys.argv[1])
-    benchmarks(events, peptide)
+    benchmarks(events, peptide, sys.argv[2])
 
 
 if __name__ == "__main__":

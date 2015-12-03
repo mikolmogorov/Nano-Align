@@ -49,7 +49,7 @@ FLANK = 50
 def main():
     events, peptide = sp.read_mat(sys.argv[1])
     rev_events = reverse(events, peptide)
-    sp.write_mat(events, peptide, sys.argv[2])
+    sp.write_mat(rev_events, peptide, sys.argv[2])
 
 
 if __name__ == "__main__":
