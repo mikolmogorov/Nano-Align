@@ -64,7 +64,7 @@ def benchmarks(events, peptide, svr_file):
 
 TRAIN_AVG = 1
 TEST_AVG = 10
-FLANK = 50
+FLANK = 1
 
 
 def main():

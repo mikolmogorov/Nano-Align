@@ -21,9 +21,9 @@ import nanopore.signal_proc as sp
 ROOT_DIR = os.path.dirname(__file__)
 
 def _signal_score(signal_1, signal_2):
-    return 1 - distance.correlation(signal_1, signal_2)
+    #return 1 - distance.correlation(signal_1, signal_2)
     #return spearmanr(signal_1, signal_2)[0]
-    #return -distance.euclidean(signal_1, signal_2)
+    return -distance.euclidean(signal_1, signal_2)
 
 class NanoHMM(object):
     def __init__(self, peptide_length, svr_file):

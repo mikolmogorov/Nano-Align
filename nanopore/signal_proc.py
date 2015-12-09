@@ -34,7 +34,7 @@ def read_mat(filename):
         trace = np.array(event_traces[:, sample_id])
         #norm_trace = 1 - trace / open_pore
         norm_trace = trace - open_pore
-        #norm_trace -= min(norm_trace)
+        #norm_trace = trace - min(trace)
 
         out_struct = Struct(file_tag, start_point, dwell, pa_blockade,
                             open_pore, trace, correlation)
@@ -62,13 +62,48 @@ def write_mat(events, peptide, filename):
                            "Peptide" : peptide})
 
 
+def trim_flank_noise(signal):
+    WINDOW = int(0.01 * len(signal))
+    def find_local_minima(pos_iter):
+        max_good = 0
+        max_pos = iter(pos_iter)
+        prev_good = False
+        for pos in pos_iter:
+            left = signal[pos - WINDOW / 2: pos]
+            right = signal[pos: pos + WINDOW / 2]
+            left_good = len(filter(lambda d: d > signal[pos], left))
+            right_good = len(filter(lambda d: d > signal[pos], right))
+            score = left_good + right_good
+
+            if max_good < score:
+                max_good = score
+                max_pos = pos
+            good = score > 0.7 * WINDOW
+            if good:
+                prev_good = True
+            else:
+                if prev_good:
+                    break
+        return max_pos
+
+    left = find_local_minima(xrange(WINDOW / 2, int(0.05 * len(signal))))
+    right = find_local_minima(xrange(len(signal) - WINDOW / 2,
+                                     int(0.95 * len(signal)), -1))
+
+    #plt.plot(signal)
+    #plt.plot([left, left], [min(signal), max(signal)])
+    #plt.plot([right, right], [min(signal), max(signal)])
+    #plt.show()
+    return signal[left : right]
+
+
 def normalize(signal, x):
-    return signal
+    return trim_flank_noise(signal)
     #return signal - min(signal)
     #return (signal - min(signal)) / (max(signal) - min(signal))
     #signal -= min(signal)
     #return -signal / np.mean(signal)
-    return (signal - np.mean(signal)) / np.std(signal)
+    #return (signal - np.mean(signal)) / np.std(signal)
 
 
 """
@@ -108,7 +143,6 @@ def cluster_events(events, flank):
 
     feature_mat = np.array(feature_mat)
     labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
-    #labels = KMeans(n_clusters=len(events) / 5).fit_predict(feature_mat)
 
     by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
@@ -126,10 +160,10 @@ def discretize(signal, num_peaks):
     peak_shift = len(signal) / (num_peaks - 1)
     for i in xrange(0, num_peaks):
         signal_pos = i * (peak_shift - 1)
-        discrete.append(signal[signal_pos])
-        #left = max(0, signal_pos - peak_shift / 2)
-        #right = min(len(signal), signal_pos + peak_shift / 2)
-        #discrete.append(np.mean(signal[left:right]))
+        #discrete.append(signal[signal_pos])
+        left = max(0, signal_pos - peak_shift / 2)
+        right = min(len(signal), signal_pos + peak_shift / 2)
+        discrete.append(np.mean(signal[left:right]))
 
     return discrete
 

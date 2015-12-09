@@ -55,7 +55,7 @@ def indetification_test(events, peptide, db_file, svr_file):
 
 
 TRAIN_AVG = 10
-FLANK = 50
+FLANK = 1
 
 def main():
     if len(sys.argv) != 4:

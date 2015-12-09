@@ -175,20 +175,14 @@ def compare_events(events, prot, align, need_smooth):
             event_1 = sp.smooth(event_1, smooth_frac)
             event_2 = sp.smooth(event_2, smooth_frac)
 
-        #median_1 = np.median(event_1)
-        #median_2 = np.median(event_2)
-        #std_1 = np.std(event_1)
-        #std_2 = np.std(event_2)
-        #scaled_1 = (event_1 - median_1) / std_1
-        #scaled_2 = (event_2 - median_2) / std_2
         scaled_1 = sp.normalize(event_1, len(prot))
         scaled_2 = sp.normalize(event_2, len(prot))
 
+        scaled_1 = sp.trim_flank_noise(scaled_1)
+        scaled_2 = sp.trim_flank_noise(scaled_2)
+
         scaled_1 = sp.discretize(scaled_1, len(prot))
         scaled_2 = sp.discretize(scaled_2, len(prot))
-
-        #print(np.sign(scaled_1))
-        #print(np.sign(scaled_2))
 
         if align:
             reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
@@ -213,18 +207,7 @@ def scale_events(main_signal, scaled_signal):
     median_scaled = np.median(scaled_signal)
     std_main = np.std(main_signal)
     std_scaled = np.std(scaled_signal)
-
-    #scale_guess = std_main / std_scaled
-    #offset_guess = median_main - median_scaled
     scale_guess = median_main / median_scaled
-    #obj_fun = lambda (s, o): sum((main_signal - (scaled_signal * s + o)) ** 2)
-    #res = minimize(obj_fun, [scale_guess, median_main])
-    #print(res)
-    #scale, offset = res.x
-    #return scaled_signal * scale + offset
-    #return np.array(map(lambda x: (x - median_scaled) * scale_guess + median_main,
-    #                    scaled_signal))
-    #print(scale_guess)
     return scaled_signal * scale_guess
 
 
@@ -239,6 +222,7 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
     for event in events:
         if need_smooth:
             smooth_frac = float(1) / len(prot)
+            event = sp.normalize(event, len(prot))
             event = sp.smooth(event, smooth_frac)
         #peaks = find_peaks(event.trace)
         #print("Peaks detected: {0}".format(len(peaks)))
@@ -274,10 +258,9 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
 
 WINDOW = 4
 AVERAGE = 10
-FLANK = 50
+FLANK = 1
 ALIGNMENT = False
-REVERSE = False
-SMOOTH = True
+SMOOTH = False
 
 
 def main():
@@ -286,10 +269,10 @@ def main():
         return 1
 
     events, peptide = sp.read_mat(sys.argv[1])
-    #clusters = sp.cluster_events(events, FLANK)
+    clusters = sp.cluster_events(events, FLANK)
     #averages = map(lambda c: c.consensus, clusters)
-    averages = map(lambda c: c.concensus,
-                   sp.get_averages(events, AVERAGE, FLANK, REVERSE))
+    averages = map(lambda c: c.consensus,
+                   sp.get_averages(events, AVERAGE, FLANK))
 
     #plot_blockades(averages, peptide, WINDOW, ALIGNMENT, SMOOTH)
     compare_events(averages, peptide, ALIGNMENT, SMOOTH)

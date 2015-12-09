@@ -96,8 +96,8 @@ def _score_svr(svr, events, peptide, window):
 
 
 WINDOW = 4
-TRAIN_AVG = 1
-FLANK = 50
+TRAIN_AVG = 5
+FLANK = 1
 
 
 def main():
