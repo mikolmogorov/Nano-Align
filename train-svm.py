@@ -44,14 +44,15 @@ def _peptide_to_features(peptide, window):
     return features
 
 
-def _get_features(events, peptide, window):
+def _get_features(clusters, window):
     features = []
     signals = []
+    peptide = clusters[0].events[0].peptide
     num_peaks = len(peptide) + window - 1
 
-    for event in events:
-        event = sp.normalize(event, num_peaks)
-        discretized = sp.discretize(event, num_peaks)
+    for cluster in clusters:
+        discretized = sp.discretize(sp.trim_flank_noise(cluster.consensus),
+                                    num_peaks)
         features.extend(_peptide_to_features(aa_to_weights(peptide), window))
         signals.extend(discretized)
 
@@ -69,18 +70,19 @@ def _serialize_svr(svr, window, out_file):
             f.write("{0}\t{1}\n".format(state, svr.predict(feature)[0]))
 
 
-def _score_svr(svr, events, peptide, window):
+def _score_svr(svr, clusters, window):
     def rand_jitter(arr):
         stdev = .01*(max(arr)-min(arr))
         return arr + np.random.randn(len(arr)) * stdev
 
     features = []
     signals = []
+    peptide = clusters[0].events[0].peptide
     num_peaks = len(peptide) + window - 1
 
-    for event in events:
-        event = sp.normalize(event, num_peaks)
-        discretized = sp.discretize(event, num_peaks)
+    for cluster in clusters:
+        discretized = sp.discretize(sp.trim_flank_noise(cluster.consensus),
+                                    num_peaks)
         features.extend(_peptide_to_features(aa_to_weights(peptide), window))
         signals.extend(discretized)
 
@@ -96,7 +98,7 @@ def _score_svr(svr, events, peptide, window):
 
 
 WINDOW = 4
-TRAIN_AVG = 5
+TRAIN_AVG = 1
 FLANK = 1
 
 
@@ -109,12 +111,11 @@ def main():
     features = []
     signals = []
     for mat in mat_files:
-        events, peptide = sp.read_mat(mat)
+        events = sp.read_mat(mat)
+        sp.normalize(events)
         #clusters = sp.cluster_events(events, FLANK)
-        #train_events = map(lambda c: c.consensus, clusters)
-        train_events = map(lambda c: c.consensus,
-                           sp.get_averages(events, TRAIN_AVG, FLANK))
-        f, s = _get_features(train_events, peptide, WINDOW)
+        train_events = sp.get_averages(events, TRAIN_AVG)
+        f, s = _get_features(train_events, WINDOW)
         features.extend(f)
         signals.extend(s)
 
@@ -122,10 +123,9 @@ def main():
     svr.fit(features, signals)
 
     for mat in mat_files:
-        events, peptide = sp.read_mat(mat)
-        test_events = map(lambda c: c.consensus,
-                          sp.get_averages(events, TRAIN_AVG, FLANK))
-        _score_svr(svr, test_events, peptide, WINDOW)
+        events = sp.read_mat(mat)
+        test_events = sp.get_averages(events, TRAIN_AVG)
+        _score_svr(svr, test_events, WINDOW)
 
     _serialize_svr(svr, WINDOW, sys.argv[-1])
 

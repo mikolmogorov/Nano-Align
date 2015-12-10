@@ -22,11 +22,9 @@ def _most_common(lst):
     return max(set(lst), key=lst.count)
 
 
-def benchmarks(events, peptide, svr_file):
+def benchmarks(clusters, svr_file):
+    peptide = clusters[0].events[0].peptide
     nano_hmm = NanoHMM(len(peptide), svr_file)
-    train_events = sp.get_averages(events, TRAIN_AVG, FLANK)
-    clusters = sp.get_averages(events, TEST_AVG, FLANK)
-    #clusters = sp.cluster_events(events, FLANK)
 
     correct_weights = aa_to_weights(peptide)
     print(correct_weights, "\n")
@@ -35,9 +33,11 @@ def benchmarks(events, peptide, svr_file):
     identified = 0
     print("Size\tSequence\tHMM_score\tFrac_corr\tFit_pvalue")
     for cluster in clusters:
-        score, weights = nano_hmm.hmm(cluster.consensus)
+        discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
+                                     nano_hmm.num_peaks)
+        score, weights = nano_hmm.hmm(discr_signal)
         p_value = nano_hmm.compute_pvalue(weights, peptide)
-        p_value_raw = nano_hmm.compute_pvalue_raw(cluster.consensus, peptide)
+        p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
         if p_value < 0.01:
             identified += 1
 
@@ -49,9 +49,6 @@ def benchmarks(events, peptide, svr_file):
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        discr_signal = sp.discretize(sp.normalize(cluster.consensus,
-                                                  nano_hmm.num_peaks),
-                                     nano_hmm.num_peaks)
         nano_hmm.show_fit(discr_signal, weights, peptide)
 
     profile = "".join(map(_most_common, profile))
@@ -63,13 +60,15 @@ def benchmarks(events, peptide, svr_file):
 
 
 TRAIN_AVG = 1
-TEST_AVG = 10
-FLANK = 1
+TEST_AVG = 5
 
 
 def main():
-    events, peptide = sp.read_mat(sys.argv[1])
-    benchmarks(events, peptide, sys.argv[2])
+    events = sp.read_mat(sys.argv[1])
+    sp.normalize(events)
+    clusters = sp.get_averages(events, TEST_AVG)
+    #clusters = sp.cluster_events(events)
+    benchmarks(clusters, sys.argv[2])
 
 
 if __name__ == "__main__":

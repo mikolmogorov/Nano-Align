@@ -167,22 +167,23 @@ def glob_affine_gap(seq1, seq2, gap_open, gap_ext, match_fun):
     return score, res1[::-1], res2[::-1]
 
 
-def compare_events(events, prot, align, need_smooth):
-    event_len = len(events[0])
-    for event_1, event_2 in zip(events[:-1], events[1:]):
+def compare_events(clusters, align, need_smooth):
+    print("Comparing {0} clusters".format(len(clusters)))
+    event_len = len(clusters[0].consensus)
+    for cluster_1, cluster_2 in zip(clusters[:-1], clusters[1:]):
+        event_1 = cluster_1.consensus
+        event_2 = cluster_2.consensus
+        prot = cluster_1.events[0].peptide
+
         if need_smooth:
             smooth_frac = float(1) / len(prot)
             event_1 = sp.smooth(event_1, smooth_frac)
             event_2 = sp.smooth(event_2, smooth_frac)
 
-        scaled_1 = sp.normalize(event_1, len(prot))
-        scaled_2 = sp.normalize(event_2, len(prot))
-
-        scaled_1 = sp.trim_flank_noise(scaled_1)
-        scaled_2 = sp.trim_flank_noise(scaled_2)
-
-        scaled_1 = sp.discretize(scaled_1, len(prot))
-        scaled_2 = sp.discretize(scaled_2, len(prot))
+        event_1 = sp.trim_flank_noise(event_1)
+        event_2 = sp.trim_flank_noise(event_2)
+        #event_1 = sp.discretize(event_1, len(prot))
+        #event_2 = sp.discretize(event_2, len(prot))
 
         if align:
             reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
@@ -191,10 +192,10 @@ def compare_events(events, prot, align, need_smooth):
             plot_1 = aligned_1
             plot_2 = aligned_2
         else:
-            plot_1 = scaled_1
-            plot_2 = scaled_2
+            plot_1 = event_1
+            plot_2 = event_2
 
-        print("Correlation", spearmanr(plot_1, plot_2))
+        #print("Correlation", spearmanr(plot_1, plot_2))
         plt.plot(np.repeat(plot_1, 2))
         plt.plot(np.repeat(plot_2, 2))
         plt.show()
@@ -207,22 +208,24 @@ def scale_events(main_signal, scaled_signal):
     median_scaled = np.median(scaled_signal)
     std_main = np.std(main_signal)
     std_scaled = np.std(scaled_signal)
-    scale_guess = median_main / median_scaled
-    return scaled_signal * scale_guess
+    return (scaled_signal - median_scaled) / std_scaled * std_main + median_main
 
 
-def plot_blockades(events, prot, window, alignment, need_smooth):
-    event_len = len(events[0])
-    num_samples = len(events)
+def plot_blockades(clusters, window, alignment, need_smooth):
+    num_samples = len(clusters)
+    prot = clusters[0].events[0].peptide
 
     model_volume = theoretical_signal(prot, window)
-    model_grid = [i * event_len / (len(model_volume) - 1)
-                  for i in xrange(len(model_volume))]
 
-    for event in events:
+    for cluster in clusters:
+        event = cluster.consensus
+        event = sp.trim_flank_noise(event)
+        event_len = len(event)
+        model_grid = [i * event_len / (len(model_volume) - 1)
+                      for i in xrange(len(model_volume))]
+
         if need_smooth:
             smooth_frac = float(1) / len(prot)
-            event = sp.normalize(event, len(prot))
             event = sp.smooth(event, smooth_frac)
         #peaks = find_peaks(event.trace)
         #print("Peaks detected: {0}".format(len(peaks)))
@@ -244,6 +247,7 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
 
         plt.plot(event_plot, label="blockade")
         plt.plot(model_plot, label="model")
+        plt.legend(loc="lower right")
 
         # adding AAs text:
         event_mean = np.mean(event)
@@ -251,16 +255,14 @@ def plot_blockades(events, prot, window, alignment, need_smooth):
         for i, aa in enumerate(prot):
             plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
 
-        plt.legend()
         plt.show()
 
 
 
 WINDOW = 4
-AVERAGE = 10
-FLANK = 1
+AVERAGE = 1
 ALIGNMENT = False
-SMOOTH = False
+SMOOTH = True
 
 
 def main():
@@ -268,14 +270,13 @@ def main():
         print("Usage: plot.py mat_file")
         return 1
 
-    events, peptide = sp.read_mat(sys.argv[1])
-    clusters = sp.cluster_events(events, FLANK)
-    #averages = map(lambda c: c.consensus, clusters)
-    averages = map(lambda c: c.consensus,
-                   sp.get_averages(events, AVERAGE, FLANK))
+    events = sp.read_mat(sys.argv[1])
+    sp.normalize(events)
+    #clusters = sp.cluster_events(events)
+    clusters = sp.get_averages(events, AVERAGE)
 
-    #plot_blockades(averages, peptide, WINDOW, ALIGNMENT, SMOOTH)
-    compare_events(averages, peptide, ALIGNMENT, SMOOTH)
+    #plot_blockades(clusters, WINDOW, ALIGNMENT, SMOOTH)
+    compare_events(clusters, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":

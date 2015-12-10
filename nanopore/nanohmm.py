@@ -21,9 +21,9 @@ import nanopore.signal_proc as sp
 ROOT_DIR = os.path.dirname(__file__)
 
 def _signal_score(signal_1, signal_2):
-    #return 1 - distance.correlation(signal_1, signal_2)
+    return 1 - distance.correlation(signal_1, signal_2)
     #return spearmanr(signal_1, signal_2)[0]
-    return -distance.euclidean(signal_1, signal_2)
+    #return -distance.euclidean(signal_1, signal_2)
 
 class NanoHMM(object):
     def __init__(self, peptide_length, svr_file):
@@ -152,10 +152,7 @@ class NanoHMM(object):
                 misspred += 1
         return float(misspred) / 10000
 
-    def compute_pvalue_raw(self, raw_signal, peptide):
-        norm_signal = sp.normalize(raw_signal, self.num_peaks)
-        discr_signal = sp.discretize(norm_signal, self.num_peaks)
-
+    def compute_pvalue_raw(self, discr_signal, peptide):
         weights_list = list(aa_to_weights(peptide))
         peptide_weights = aa_to_weights(peptide)
         theor_signal = self.peptide_signal(peptide_weights)
@@ -173,7 +170,7 @@ class NanoHMM(object):
     def emission_prob(self, state_id, observation):
         expec_mean = self.svr_means[self.id_to_state[state_id]]
         #return 0.000001 + norm(expec_mean, 0.01).pdf(observation)
-        return math.exp(-1 * abs(observation - expec_mean))
+        return math.exp(-1000 * abs(observation - expec_mean))
 
     def peptide_signal(self, peptide):
         flanked_peptide = ("-" * (self.window - 1) + peptide +
@@ -185,9 +182,7 @@ class NanoHMM(object):
 
         return signal
 
-    def hmm(self, signal):
-        norm_signal = sp.normalize(signal, self.num_peaks)
-        observ_seq = sp.discretize(norm_signal, self.num_peaks)
+    def hmm(self, observ_seq):
         num_observ = len(observ_seq)
         num_states = len(self.init_distr)
         dp_mat = np.zeros((num_states, num_observ))
