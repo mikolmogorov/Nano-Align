@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from collections import namedtuple, defaultdict
 import scipy.io as sio
 import numpy as np
@@ -123,12 +125,20 @@ def normalize(events):
         #ress.append(event.pA_Blockade)
         #ress.append((event.pA_Blockade + event.openPore) / event.openPore)
         #print((event.pA_Blockade + event.openPore) / event.openPore)
-        print(event.pA_Blockade / abs(event.openPore), event.openPore)
+        #print(event.pA_Blockade / abs(event.openPore), event.openPore)
+        if np.mean(event.eventTrace) > 0:
+            norm_trace = event.eventTrace
+        else:
+            norm_trace = (event.eventTrace - event.openPore)
+        #print(np.percentile(norm_trace, 95), max(norm_trace),
+        #      np.percentile(norm_trace, 5), min(norm_trace), np.std(norm_trace))
         #norm_trace = 1 - (event.eventTrace + event.openPore) / event.openPore
         #norm_trace = 1 - (event.eventTrace + event.openPore) / event.openPore
         #norm_trace = event.eventTrace - np.mean(event.eventTrace)
-        norm_trace = event.eventTrace / abs(event.openPore)
-        event.eventTrace = norm_trace
+        #norm_trace = event.eventTrace / abs(event.openPore)
+        #norm_trace = (event.eventTrace - np.median(event.eventTrace)) / np.std(event.eventTrace)
+        scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
+        event.eventTrace = (norm_trace - np.median(norm_trace)) / np.std(norm_trace)
 
     #print(ress)
     #print(1 - distance.correlation(pas, ops))
@@ -172,7 +182,7 @@ def discretize(signal, num_peaks):
         #discrete.append(signal[signal_pos])
         left = max(0, signal_pos - peak_shift / 2)
         right = min(len(signal), signal_pos + peak_shift / 2)
-        discrete.append(np.mean(signal[left:right]))
+        discrete.append(np.median(signal[left:right]))
 
     return discrete
 

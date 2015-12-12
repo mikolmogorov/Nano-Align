@@ -10,6 +10,7 @@ from itertools import product
 import numpy as np
 from sklearn.svm import SVR
 from sklearn.decomposition import PCA
+from sklearn.linear_model import RANSACRegressor
 import matplotlib.pyplot as plt
 import matplotlib
 
@@ -66,7 +67,7 @@ def _serialize_svr(svr, window, out_file):
 
     with open(out_file, "w") as f:
         for state in all_states:
-            feature = _kmer_features(state)
+            feature = np.array(_kmer_features(state)).reshape(1, -1)
             f.write("{0}\t{1}\n".format(state, svr.predict(feature)[0]))
 
 
@@ -120,7 +121,9 @@ def main():
         signals.extend(s)
 
     svr = SVR(kernel="rbf")
+    #svr = RANSACRegressor()
     svr.fit(features, signals)
+    #print(svr.estimator_.coef_)
 
     for mat in mat_files:
         events = sp.read_mat(mat)

@@ -182,8 +182,8 @@ def compare_events(clusters, align, need_smooth):
 
         event_1 = sp.trim_flank_noise(event_1)
         event_2 = sp.trim_flank_noise(event_2)
-        #event_1 = sp.discretize(event_1, len(prot))
-        #event_2 = sp.discretize(event_2, len(prot))
+        event_1 = sp.discretize(event_1, len(prot))
+        event_2 = sp.discretize(event_2, len(prot))
 
         if align:
             reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
@@ -232,7 +232,14 @@ def plot_blockades(clusters, window, alignment, need_smooth):
 
         interp_fun = interp1d(model_grid, model_volume, kind="cubic")
         model_interp = interp_fun(xrange(event_len))
-        model_scaled = scale_events(event, model_interp)
+
+        model_scale = np.percentile(model_interp, 75) - np.percentile(model_interp, 25)
+        model_scaled = (model_interp - np.median(model_interp)) / model_scale
+        print(model_scale, np.median(model_interp))
+
+        event_scale = np.percentile(event, 75) - np.percentile(event, 25)
+        event = (event - np.median(event)) / event_scale
+        #model_scaled = scale_events(event, model_interp)
         ###
 
         if alignment:
@@ -245,22 +252,26 @@ def plot_blockades(clusters, window, alignment, need_smooth):
             event_plot = event
             model_plot = model_scaled
 
+        event_plot = sp.discretize(event_plot, len(prot))
+        model_plot = sp.discretize(model_plot, len(prot))
+
+        print(1 - distance.correlation(event_plot, model_plot))
         plt.plot(event_plot, label="blockade")
         plt.plot(model_plot, label="model")
         plt.legend(loc="lower right")
 
         # adding AAs text:
-        event_mean = np.mean(event)
-        acids_pos = get_acids_positions(prot, window, len(event_plot))
-        for i, aa in enumerate(prot):
-            plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
+        #event_mean = np.mean(event)
+        #acids_pos = get_acids_positions(prot, window, len(event_plot))
+        #for i, aa in enumerate(prot):
+        #    plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
 
         plt.show()
 
 
 
 WINDOW = 4
-AVERAGE = 1
+AVERAGE = 5
 ALIGNMENT = False
 SMOOTH = True
 

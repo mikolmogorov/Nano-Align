@@ -21,9 +21,9 @@ import nanopore.signal_proc as sp
 ROOT_DIR = os.path.dirname(__file__)
 
 def _signal_score(signal_1, signal_2):
-    return 1 - distance.correlation(signal_1, signal_2)
+    #return 1 - distance.correlation(signal_1, signal_2)
     #return spearmanr(signal_1, signal_2)[0]
-    #return -distance.euclidean(signal_1, signal_2)
+    return -distance.euclidean(signal_1, signal_2)
 
 class NanoHMM(object):
     def __init__(self, peptide_length, svr_file):
@@ -169,8 +169,9 @@ class NanoHMM(object):
 
     def emission_prob(self, state_id, observation):
         expec_mean = self.svr_means[self.id_to_state[state_id]]
+        #expec_mean = _theoretical_signal(self.id_to_state[state_id])
         #return 0.000001 + norm(expec_mean, 0.01).pdf(observation)
-        return math.exp(-1000 * abs(observation - expec_mean))
+        return math.exp(-10 * abs(observation - expec_mean))
 
     def peptide_signal(self, peptide):
         flanked_peptide = ("-" * (self.window - 1) + peptide +
@@ -179,6 +180,7 @@ class NanoHMM(object):
         for i in xrange(0, self.num_peaks):
             kmer = flanked_peptide[i : i + self.window]
             signal.append(self.svr_means[kmer])
+            #signal.append(_theoretical_signal(kmer))
 
         return signal
 
@@ -259,3 +261,16 @@ AA_SIZE_TRANS = maketrans("GASCUTDPNVBEQZHLIMKXRFYW-",
                           "MMMMMSSSSSSIIIIIIIIILLLL-")
 def aa_to_weights(kmer):
     return kmer.translate(AA_SIZE_TRANS)
+
+
+def _theoretical_signal(kmer):
+    #VOLUMES = {"I": 0.1688, "F": 0.2034, "V": 0.1417, "L": 0.1679,
+    #           "W": 0.2376, "M": 0.1708, "A": 0.0915, "G": 0.0664,
+    #           "C": 0.1056, "Y": 0.2036, "P": 0.1293, "T": 0.1221,
+    #           "S": 0.0991, "H": 0.1673, "E": 0.1551, "N": 0.1352,
+    #           "Q": 0.1611, "D": 0.1245, "K": 0.1713, "R": 0.2021}
+    VOLUMES = {"M": 0.0991, "S": 0.13225, "I": 0.1679, "L": 0.2035, "-": 0.0}
+
+    volumes = np.array(map(VOLUMES.get, kmer))
+    unscaled = sum(volumes) / len(kmer)
+    return (unscaled - 0.1425) / 0.03   #magic
