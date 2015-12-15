@@ -30,20 +30,16 @@ def benchmarks(clusters, svr_file):
     print(correct_weights, "\n")
     profile = [[] for x in xrange(len(correct_weights))]
 
-    identified = 0
     print("Size\tSequence\tHMM_score\tFrac_corr\tFit_pvalue")
     for cluster in clusters:
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                      nano_hmm.num_peaks)
 
-        #event_scale = np.percentile(discr_signal, 75) - np.percentile(discr_signal, 25)
-        #discr_signal = (discr_signal - np.median(discr_signal)) / event_scale
+        #discr_signal = (discr_signal - np.mean(discr_signal)) / np.std(discr_signal)
 
         score, weights = nano_hmm.hmm(discr_signal)
         p_value = nano_hmm.compute_pvalue(weights, peptide)
         p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
-        if p_value < 0.01:
-            identified += 1
 
         accuracy = _hamming_dist(weights, correct_weights)
         accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
@@ -60,7 +56,6 @@ def benchmarks(clusters, svr_file):
     accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
     print()
     print(profile, accuracy)
-    print("Identified:", float(identified) / len(clusters))
 
 
 TRAIN_AVG = 1
@@ -70,8 +65,8 @@ TEST_AVG = 10
 def main():
     events = sp.read_mat(sys.argv[1])
     sp.normalize(events)
-    #clusters = sp.get_averages(events, TEST_AVG)
-    clusters = sp.cluster_events(events)
+    clusters = sp.get_averages(events, TEST_AVG)
+    #clusters = sp.cluster_events(events)
     benchmarks(clusters, sys.argv[2])
 
 

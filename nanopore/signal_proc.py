@@ -120,7 +120,7 @@ def normalize(events):
     ops = []
     ress = []
     for event in events:
-        norm_trace = event.eventTrace
+        norm_trace = event.eventTrace - min(event.eventTrace)
         #scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
         event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
 
