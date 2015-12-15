@@ -26,36 +26,21 @@ def benchmarks(clusters, svr_file):
     peptide = clusters[0].events[0].peptide
     nano_hmm = NanoHMM(len(peptide), svr_file)
 
-    correct_weights = aa_to_weights(peptide)
-    print(correct_weights, "\n")
-    profile = [[] for x in xrange(len(correct_weights))]
-
-    print("Size\tSequence\tHMM_score\tFrac_corr\tFit_pvalue")
+    p_values = []
     for cluster in clusters:
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                      nano_hmm.num_peaks)
-
         #discr_signal = (discr_signal - np.mean(discr_signal)) / np.std(discr_signal)
+        discr_signal -= np.mean(discr_signal)
 
-        score, weights = nano_hmm.hmm(discr_signal)
-        p_value = nano_hmm.compute_pvalue(weights, peptide)
         p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
+        p_values.append(p_value_raw)
+        print(len(cluster.events), p_value_raw)
 
-        accuracy = _hamming_dist(weights, correct_weights)
-        accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
-        print("{0}\t{1}\t{2:5.2f}\t{3:5.2f}\t{4}\t{5}"
-                    .format(len(cluster.events), weights, score, accuracy,
-                            p_value, p_value_raw))
-        for pos, aa in enumerate(weights):
-            profile[pos].append(aa)
+        #nano_hmm.plot_raw_vs_theory(discr_signal, peptide)
 
-        #nano_hmm.show_fit(discr_signal, weights, peptide)
-
-    profile = "".join(map(_most_common, profile))
-    accuracy = _hamming_dist(profile, correct_weights)
-    accuracy = (float(len(correct_weights)) - accuracy) / len(correct_weights)
-    print()
-    print(profile, accuracy)
+    print("Mean: ", np.mean(p_values))
+    print("Median: ", np.median(p_values))
 
 
 TRAIN_AVG = 1

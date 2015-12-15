@@ -154,7 +154,7 @@ def discretize(signal, num_peaks):
         #discrete.append(signal[signal_pos])
         left = max(0, signal_pos - peak_shift / 2)
         right = min(len(signal), signal_pos + peak_shift / 2)
-        discrete.append(np.median(signal[left:right]))
+        discrete.append(np.mean(signal[left:right]))
 
     return discrete
 

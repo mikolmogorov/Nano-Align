@@ -122,7 +122,7 @@ def main():
         features.extend(f)
         signals.extend(s)
 
-    svr = SVR(kernel="rbf")
+    svr = SVR(kernel="rbf", gamma=10, epsilon=0.001, C=0.01)
     #svr = RANSACRegressor()
     svr.fit(features, signals)
     #print(svr.estimator_.coef_)

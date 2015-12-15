@@ -165,14 +165,35 @@ class NanoHMM(object):
         theor_signal = self.peptide_signal(peptide_weights)
         misspred = 0
         score = _signal_score(discr_signal, theor_signal)
+        decoy_winner = None
         for x in xrange(10000):
             random.shuffle(weights_list)
             decoy_weights = "".join(weights_list)
             decoy_signal = self.peptide_signal(decoy_weights)
             decoy_score = _signal_score(discr_signal, decoy_signal)
             if decoy_score > score:
+                decoy_winner = decoy_signal
                 misspred += 1
+
+        p_value = float(misspred) / 10000
+        #print(p_value)
+        #self.plot_raw_vs_theory(discr_signal, peptide, decoy_winner)
         return float(misspred) / 10000
+
+    def plot_raw_vs_theory(self, discr_signal, peptide, decoy_winner):
+        theor_signal = self.peptide_signal(aa_to_weights(peptide))
+
+        print("Score:", _signal_score(discr_signal, theor_signal))
+
+        matplotlib.rcParams.update({'font.size': 16})
+        plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
+        plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
+        if decoy_winner:
+            plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
+        plt.xlabel("AA position")
+        plt.ylabel("Normalized signal value")
+        plt.legend(loc="lower right")
+        plt.show()
 
     def emission_prob(self, state_id, observation):
         expec_mean = self.svr_predict(_kmer_features(self.id_to_state[state_id]))
