@@ -6,6 +6,7 @@ from collections import defaultdict
 import random
 from string import maketrans
 from itertools import product
+import pickle
 
 import numpy as np
 from sklearn.svm import SVR
@@ -28,7 +29,7 @@ def _kmer_features(kmer):
     small = kmer.count("S")
     intermediate = kmer.count("I")
     large = kmer.count("L")
-    return [large, intermediate, small, miniscule]
+    return (large, intermediate, small, miniscule)
 
 
 def _peptide_to_features(peptide, window):
@@ -62,13 +63,14 @@ def _get_features(clusters, window):
 
 
 def _serialize_svr(svr, window, out_file):
-    all_states = product("-MSIL", repeat=window)
-    all_states = sorted(map("".join, all_states))
+    pickle.dump(svr, open(out_file, "wb"))
+    #all_states = product("-MSIL", repeat=window)
+    #all_states = sorted(map("".join, all_states))
 
-    with open(out_file, "w") as f:
-        for state in all_states:
-            feature = np.array(_kmer_features(state)).reshape(1, -1)
-            f.write("{0}\t{1}\n".format(state, svr.predict(feature)[0]))
+    #with open(out_file, "w") as f:
+    #    for state in all_states:
+    #        feature = np.array(_kmer_features(state)).reshape(1, -1)
+    #        f.write("{0}\t{1}\n".format(state, svr.predict(feature)[0]))
 
 
 def _score_svr(svr, clusters, window):
@@ -125,10 +127,10 @@ def main():
     svr.fit(features, signals)
     #print(svr.estimator_.coef_)
 
-    for mat in mat_files:
-        events = sp.read_mat(mat)
-        test_events = sp.get_averages(events, TRAIN_AVG)
-        _score_svr(svr, test_events, WINDOW)
+    #for mat in mat_files:
+    #    events = sp.read_mat(mat)
+    #    test_events = sp.get_averages(events, TRAIN_AVG)
+    #    _score_svr(svr, test_events, WINDOW)
 
     _serialize_svr(svr, WINDOW, sys.argv[-1])
 

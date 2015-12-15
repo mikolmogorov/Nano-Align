@@ -53,7 +53,7 @@ def benchmarks(clusters, svr_file):
         for pos, aa in enumerate(weights):
             profile[pos].append(aa)
 
-        nano_hmm.show_fit(discr_signal, weights, peptide)
+        #nano_hmm.show_fit(discr_signal, weights, peptide)
 
     profile = "".join(map(_most_common, profile))
     accuracy = _hamming_dist(profile, correct_weights)
@@ -70,8 +70,8 @@ TEST_AVG = 10
 def main():
     events = sp.read_mat(sys.argv[1])
     sp.normalize(events)
-    clusters = sp.get_averages(events, TEST_AVG)
-    #clusters = sp.cluster_events(events)
+    #clusters = sp.get_averages(events, TEST_AVG)
+    clusters = sp.cluster_events(events)
     benchmarks(clusters, sys.argv[2])
 
 

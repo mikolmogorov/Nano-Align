@@ -5,6 +5,7 @@ from collections import namedtuple, defaultdict
 import math
 import random
 import os
+import pickle
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ import matplotlib
 import numpy as np
 import scipy.io as sio
 from scipy.spatial import distance
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, norm
 from sklearn.svm import SVR
 from sklearn.decomposition import PCA
 
@@ -35,7 +36,9 @@ class NanoHMM(object):
         self.num_peaks = peptide_length + self.window - 1
         self.alphabet = "MSIL"
         self.ext_alphabet = self.alphabet + "-"
-        self.svr_means = {}
+
+        self.svr = None
+        self.svr_cache = {}
 
         self.set_state_space()
         self.set_init_distr()
@@ -91,12 +94,14 @@ class NanoHMM(object):
                     self.trans_table[state][next_state] = \
                                         float(1) / len(self.alphabet)
 
+    def svr_predict(self, feature):
+        if feature not in self.svr_cache:
+            np_feature = np.array(feature).reshape(1, -1)
+            self.svr_cache[feature] = self.svr.predict(np_feature)[0]
+        return self.svr_cache[feature]
+
     def set_emission_probs(self, svr_file):
-        with open(svr_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                state, value = line.split()
-                self.svr_means[state] = float(value)
+        self.svr = pickle.load(open(svr_file, "rb"))
 
     def show_fit(self, raw_signal, predicted_weights, peptide):
         fit_signal = self.peptide_signal(predicted_weights)
@@ -115,6 +120,7 @@ class NanoHMM(object):
         plt.legend(loc="lower right")
         plt.show()
 
+    """
     def show_target_vs_decoy(self, target_weights, decoy_weights, peptide):
         target_signal = self.peptide_signal(target_weights)
         decoy_signal = self.peptide_signal(aa_to_weights(decoy_weights))
@@ -132,6 +138,7 @@ class NanoHMM(object):
         plt.ylabel("Normalized signal value")
         plt.legend(loc="lower right")
         plt.show()
+    """
 
     def score(self, aa_weights_1, aa_weights_2):
         signal_1 = self.peptide_signal(aa_weights_1)
@@ -168,10 +175,10 @@ class NanoHMM(object):
         return float(misspred) / 10000
 
     def emission_prob(self, state_id, observation):
-        expec_mean = self.svr_means[self.id_to_state[state_id]]
+        expec_mean = self.svr_predict(_kmer_features(self.id_to_state[state_id]))
         #expec_mean = _theoretical_signal(self.id_to_state[state_id])
-        #return 0.000001 + norm(expec_mean, 0.01).pdf(observation)
-        return math.exp(-10 * abs(observation - expec_mean))
+        return 0.000001 + norm(expec_mean, 0.1).pdf(observation)
+        #return math.exp(-10 * abs(observation - expec_mean))
 
     def peptide_signal(self, peptide):
         flanked_peptide = ("-" * (self.window - 1) + peptide +
@@ -179,7 +186,7 @@ class NanoHMM(object):
         signal = []
         for i in xrange(0, self.num_peaks):
             kmer = flanked_peptide[i : i + self.window]
-            signal.append(self.svr_means[kmer])
+            signal.append(self.svr_predict(_kmer_features(kmer)))
             #signal.append(_theoretical_signal(kmer))
 
         return signal
@@ -254,7 +261,7 @@ def _kmer_features(kmer):
     small = kmer.count("S")
     intermediate = kmer.count("I")
     large = kmer.count("L")
-    return [large, intermediate, small, miniscule]
+    return (large, intermediate, small, miniscule)
 
 
 AA_SIZE_TRANS = maketrans("GASCUTDPNVBEQZHLIMKXRFYW-",

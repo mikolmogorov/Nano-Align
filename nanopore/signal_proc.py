@@ -120,37 +120,9 @@ def normalize(events):
     ops = []
     ress = []
     for event in events:
-        #pas.append(event.pA_Blockade)
-        #ops.append(-event.openPore)
-        #ress.append(event.pA_Blockade)
-        #ress.append((event.pA_Blockade + event.openPore) / event.openPore)
-        #print((event.pA_Blockade + event.openPore) / event.openPore)
-        #print(event.pA_Blockade / abs(event.openPore), event.openPore)
-        if np.mean(event.eventTrace) > 0:
-            norm_trace = event.eventTrace
-        else:
-            norm_trace = (event.eventTrace - event.openPore)
-        #print(np.percentile(norm_trace, 95), max(norm_trace),
-        #      np.percentile(norm_trace, 5), min(norm_trace), np.std(norm_trace))
-        #norm_trace = 1 - (event.eventTrace + event.openPore) / event.openPore
-        #norm_trace = 1 - (event.eventTrace + event.openPore) / event.openPore
-        #norm_trace = event.eventTrace - np.mean(event.eventTrace)
-        #norm_trace = event.eventTrace / abs(event.openPore)
-        #norm_trace = (event.eventTrace - np.median(event.eventTrace)) / np.std(event.eventTrace)
-        scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
-        event.eventTrace = (norm_trace - np.median(norm_trace)) / np.std(norm_trace)
-
-    #print(ress)
-    #print(1 - distance.correlation(pas, ops))
-    #plt.hist(ress)
-    #plt.show()
-    #plt.scatter(pas, ops)
-    #plt.show()
-    #return signal - min(signal)
-    #return (signal - min(signal)) / (max(signal) - min(signal))
-    #signal -= min(signal)
-    #return -signal / np.mean(signal)
-    #return (signal - np.mean(signal)) / np.std(signal)
+        norm_trace = event.eventTrace
+        #scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
+        event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
 
 
 def cluster_events(events):
