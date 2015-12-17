@@ -139,18 +139,24 @@ class NanoHMM(object):
                 misspred += 1
         return float(misspred) / 10000
 
+    def signal_peptide_score(self, signal, peptide):
+        theor_signal = self.peptide_signal(aa_to_weights(peptide))
+        return _signal_score(signal, theor_signal)
+
     def compute_pvalue_raw(self, discr_signal, peptide):
-        weights_list = list(aa_to_weights(peptide))
-        peptide_weights = aa_to_weights(peptide)
-        theor_signal = self.peptide_signal(peptide_weights)
+        weights_list = list(peptide)
+        peptide_weights = peptide
+        #theor_signal = self.peptide_signal(peptide_weights)
         misspred = 0
-        score = _signal_score(discr_signal, theor_signal)
+        #score = _signal_score(discr_signal, theor_signal)
+        score = self.signal_peptide_score(discr_signal, peptide_weights)
         decoy_winner = None
         for x in xrange(10000):
             random.shuffle(weights_list)
             decoy_weights = "".join(weights_list)
             decoy_signal = self.peptide_signal(decoy_weights)
-            decoy_score = _signal_score(discr_signal, decoy_signal)
+            #decoy_score = _signal_score(discr_signal, decoy_signal)
+            decoy_score = self.signal_peptide_score(discr_signal, decoy_weights)
             if decoy_score > score:
                 decoy_winner = decoy_signal
                 misspred += 1
