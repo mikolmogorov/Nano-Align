@@ -120,26 +120,6 @@ class NanoHMM(object):
         plt.legend(loc="lower right")
         plt.show()
 
-    """
-    def show_target_vs_decoy(self, target_weights, decoy_weights, peptide):
-        target_signal = self.peptide_signal(target_weights)
-        decoy_signal = self.peptide_signal(aa_to_weights(decoy_weights))
-        theor_signal = self.peptide_signal(aa_to_weights(peptide))
-
-        print("Target score:",
-              _signal_score(target_signal, theor_signal))
-        print("Decoy score:", _signal_score(target_signal, decoy_signal))
-
-        matplotlib.rcParams.update({'font.size': 16})
-        plt.plot(target_signal, "b-", label="target", linewidth=1.5)
-        plt.plot(decoy_signal, "g-", label="decoy", linewidth=1.5)
-        plt.plot(theor_signal, "r-", label="theoretical", linewidth=1.5)
-        plt.xlabel("AA position")
-        plt.ylabel("Normalized signal value")
-        plt.legend(loc="lower right")
-        plt.show()
-    """
-
     def score(self, aa_weights_1, aa_weights_2):
         signal_1 = self.peptide_signal(aa_weights_1)
         signal_2 = self.peptide_signal(aa_weights_2)
@@ -182,13 +162,14 @@ class NanoHMM(object):
 
     def plot_raw_vs_theory(self, discr_signal, peptide, decoy_winner):
         theor_signal = self.peptide_signal(aa_to_weights(peptide))
+        #theor_signal = (theor_signal - np.mean(theor_signal)) / np.std(theor_signal)
 
         print("Score:", _signal_score(discr_signal, theor_signal))
 
         matplotlib.rcParams.update({'font.size': 16})
         plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
         plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
-        if decoy_winner:
+        if decoy_winner is not None:
             plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
         plt.xlabel("AA position")
         plt.ylabel("Normalized signal value")
@@ -210,6 +191,7 @@ class NanoHMM(object):
             signal.append(self.svr_predict(_kmer_features(kmer)))
             #signal.append(_theoretical_signal(kmer))
 
+        signal = (signal - np.mean(signal)) / np.std(signal)
         return signal
 
     def hmm(self, observ_seq):

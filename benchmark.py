@@ -31,7 +31,6 @@ def benchmarks(clusters, svr_file):
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                      nano_hmm.num_peaks)
         #discr_signal = (discr_signal - np.mean(discr_signal)) / np.std(discr_signal)
-        discr_signal -= np.mean(discr_signal)
 
         p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
         p_values.append(p_value_raw)
@@ -43,15 +42,14 @@ def benchmarks(clusters, svr_file):
     print("Median: ", np.median(p_values))
 
 
-TRAIN_AVG = 1
 TEST_AVG = 10
 
 
 def main():
     events = sp.read_mat(sys.argv[1])
     sp.normalize(events)
-    clusters = sp.get_averages(events, TEST_AVG)
-    #clusters = sp.cluster_events(events)
+    #clusters = sp.get_averages(events, TEST_AVG)
+    clusters = sp.cluster_events(events)
     benchmarks(clusters, sys.argv[2])
 
 

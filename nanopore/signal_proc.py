@@ -38,7 +38,6 @@ def read_mat(filename):
     event_traces = struct["eventTrace"]
     num_samples = event_traces.shape[1]
 
-    #print(struct["pA_Blockade"])
     events = []
     for sample_id in xrange(num_samples):
         file_tag = struct["fileTag"][sample_id]
@@ -120,9 +119,13 @@ def normalize(events):
     ops = []
     ress = []
     for event in events:
-        norm_trace = event.eventTrace - min(event.eventTrace)
+        #norm_trace = event.eventTrace - min(event.eventTrace)
         #scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
-        event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
+        #event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
+        #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace))
+        event.eventTrace = 1 - event.eventTrace / event.openPore
+        #event.eventTrace -= np.mean(event.eventTrace)
+        #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace)) / np.std(event.eventTrace)
 
 
 def cluster_events(events):
@@ -162,6 +165,8 @@ def discretize(signal, num_peaks):
 def get_consensus(events):
     matrix = np.array(map(lambda e: e.eventTrace, events))
     medians = np.mean(matrix, axis=0)
+
+    medians = (medians - np.mean(medians)) / np.std(medians)
     return medians
 
 

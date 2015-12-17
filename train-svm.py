@@ -58,19 +58,11 @@ def _get_features(clusters, window):
         features.extend(_peptide_to_features(aa_to_weights(peptide), window))
         signals.extend(discretized)
 
-    #return svr
     return features, signals
 
 
 def _serialize_svr(svr, window, out_file):
     pickle.dump(svr, open(out_file, "wb"))
-    #all_states = product("-MSIL", repeat=window)
-    #all_states = sorted(map("".join, all_states))
-
-    #with open(out_file, "w") as f:
-    #    for state in all_states:
-    #        feature = np.array(_kmer_features(state)).reshape(1, -1)
-    #        f.write("{0}\t{1}\n".format(state, svr.predict(feature)[0]))
 
 
 def _score_svr(svr, clusters, window):
@@ -100,39 +92,77 @@ def _score_svr(svr, clusters, window):
     #plt.show()
 
 
-WINDOW = 4
-TRAIN_AVG = 1
-FLANK = 1
-
-
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: train-svm.py mat_file_1[,mat_file_2...] out_file")
-        return 1
-
-    mat_files = sys.argv[1:-1]
+def _process_mats(mat_files):
     features = []
     signals = []
     for mat in mat_files:
         events = sp.read_mat(mat)
         sp.normalize(events)
-        #clusters = sp.cluster_events(events, FLANK)
+        #train_events = sp.cluster_events(events)
         train_events = sp.get_averages(events, TRAIN_AVG)
         f, s = _get_features(train_events, WINDOW)
         features.extend(f)
         signals.extend(s)
 
-    svr = SVR(kernel="rbf", gamma=10, epsilon=0.001, C=0.01)
-    #svr = RANSACRegressor()
-    svr.fit(features, signals)
-    #print(svr.estimator_.coef_)
+    return features, signals
 
-    #for mat in mat_files:
-    #    events = sp.read_mat(mat)
-    #    test_events = sp.get_averages(events, TRAIN_AVG)
-    #    _score_svr(svr, test_events, WINDOW)
 
+WINDOW = 4
+TRAIN_AVG = 1
+
+
+def cross_validate():
+    if len(sys.argv) != 4:
+        print("Usage: train-svm.py train_signals cv_signals out_file")
+        return 1
+
+    train_mats = sys.argv[1].split(",")
+    cv_mats = sys.argv[2].split(",")
+
+    train_features, train_signals = _process_mats(train_mats)
+    cv_features, cv_signals = _process_mats(cv_mats)
+
+    eps_vec = [0.0001, 0.001, 0.01, 0.1]
+    C_vec = [1, 10, 100, 1000, 10000, 100000]
+    gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
+
+    best_score = -sys.maxint
+    best_svr = None
+    best_params = None
+
+    print("C\tGam\tEps\tScore")
+    for C in C_vec:
+        for gamma in gamma_vec:
+            for eps in eps_vec:
+                svr = SVR(kernel="rbf", gamma=gamma, epsilon=eps, C=C)
+                svr.fit(train_features, train_signals)
+                score = svr.score(cv_features, cv_signals)
+
+                print("{0}\t{1}\t{2}\t{3}".format(C, gamma, eps, score))
+                if score > best_score:
+                    best_score = score
+                    best_svr = svr
+                    best_params = (C, gamma, eps)
+
+    print(*best_params)
+    _serialize_svr(best_svr, WINDOW, sys.argv[3])
+
+
+def just_train():
+    if len(sys.argv) < 3:
+        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file")
+        return 1
+
+    train_features, train_signals = _process_mats(sys.argv[1:-1])
+    #svr = SVR(kernel="rbf", gamma=1, epsilon=0.01, C=100)
+    svr = SVR(kernel="rbf", gamma=0.001, epsilon=0.01, C=1000)
+    svr.fit(train_features, train_signals)
     _serialize_svr(svr, WINDOW, sys.argv[-1])
+
+
+def main():
+    #cross_validate()
+    just_train()
 
 
 if __name__ == "__main__":

@@ -180,6 +180,9 @@ def compare_events(clusters, align, need_smooth):
             event_1 = sp.smooth(event_1, smooth_frac)
             event_2 = sp.smooth(event_2, smooth_frac)
 
+        #event_1 = (event_1 - np.mean(event_1)) / np.std(event_1)
+        #event_2 = (event_2 - np.mean(event_2)) / np.std(event_2)
+
         event_1 = sp.trim_flank_noise(event_1)
         event_2 = sp.trim_flank_noise(event_2)
         event_1 = sp.discretize(event_1, len(prot))
@@ -235,11 +238,11 @@ def plot_blockades(clusters, window, alignment, need_smooth):
 
         model_scale = np.percentile(model_interp, 75) - np.percentile(model_interp, 25)
         model_scaled = (model_interp - np.median(model_interp)) / model_scale
-        print(model_scale, np.median(model_interp))
+        #print(model_scale, np.median(model_interp))
 
         event_scale = np.percentile(event, 75) - np.percentile(event, 25)
         event = (event - np.median(event)) / event_scale
-        #model_scaled = scale_events(event, model_interp)
+        model_scaled = scale_events(event, model_interp)
         ###
 
         if alignment:
@@ -271,7 +274,7 @@ def plot_blockades(clusters, window, alignment, need_smooth):
 
 
 WINDOW = 4
-AVERAGE = 5
+AVERAGE = 10
 ALIGNMENT = False
 SMOOTH = True
 
@@ -282,9 +285,9 @@ def main():
         return 1
 
     events = sp.read_mat(sys.argv[1])
-    sp.normalize(events)
-    #clusters = sp.cluster_events(events)
-    clusters = sp.get_averages(events, AVERAGE)
+    #sp.normalize(events)
+    clusters = sp.cluster_events(events)
+    #clusters = sp.get_averages(events, AVERAGE)
 
     #plot_blockades(clusters, WINDOW, ALIGNMENT, SMOOTH)
     compare_events(clusters, ALIGNMENT, SMOOTH)
