@@ -151,17 +151,19 @@ class NanoHMM(object):
         #score = _signal_score(discr_signal, theor_signal)
         score = self.signal_peptide_score(discr_signal, peptide_weights)
         decoy_winner = None
+        #scores = []
         for x in xrange(10000):
             random.shuffle(weights_list)
             decoy_weights = "".join(weights_list)
-            decoy_signal = self.peptide_signal(decoy_weights)
-            #decoy_score = _signal_score(discr_signal, decoy_signal)
+            decoy_signal = self.peptide_signal(aa_to_weights(decoy_weights))
             decoy_score = self.signal_peptide_score(discr_signal, decoy_weights)
+            #scores.append(decoy_score)
             if decoy_score > score:
                 decoy_winner = decoy_signal
                 misspred += 1
 
         p_value = float(misspred) / 10000
+        #print(np.median(scores))
         #print(p_value)
         #self.plot_raw_vs_theory(discr_signal, peptide, decoy_winner)
         return float(misspred) / 10000
@@ -171,6 +173,8 @@ class NanoHMM(object):
         #theor_signal = (theor_signal - np.mean(theor_signal)) / np.std(theor_signal)
 
         print("Score:", _signal_score(discr_signal, theor_signal))
+        if decoy_winner is not None:
+            print("Decoy score:", _signal_score(discr_signal, decoy_winner))
 
         matplotlib.rcParams.update({'font.size': 16})
         plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")

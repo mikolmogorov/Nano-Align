@@ -7,6 +7,7 @@ import random
 from string import maketrans
 from itertools import product
 import pickle
+import os
 
 import numpy as np
 from sklearn.svm import SVR
@@ -16,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 import nanopore.signal_proc as sp
+import benchmark
 
 
 AA_SIZE_TRANS = maketrans("GASCUTDPNVBEQZHLIMKXRFYW-",
@@ -97,7 +99,7 @@ def _process_mats(mat_files):
     signals = []
     for mat in mat_files:
         events = sp.read_mat(mat)
-        sp.normalize(events)
+        #sp.normalize(events)
         #train_events = sp.cluster_events(events)
         train_events = sp.get_averages(events, TRAIN_AVG)
         f, s = _get_features(train_events, WINDOW)
@@ -120,13 +122,14 @@ def cross_validate():
     cv_mats = sys.argv[2].split(",")
 
     train_features, train_signals = _process_mats(train_mats)
-    cv_features, cv_signals = _process_mats(cv_mats)
+    #cv_features, cv_signals = _process_mats(cv_mats)
 
-    eps_vec = [0.0001, 0.001, 0.01, 0.1]
-    C_vec = [1, 10, 100, 1000, 10000, 100000]
-    gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
+    #eps_vec = [0.0001, 0.001, 0.01, 0.1]
+    eps_vec = [0.01]
+    C_vec = [0.01, 0.1, 1, 10, 100]
+    gamma_vec = [0.01, 0.1, 1, 10, 100]
 
-    best_score = -sys.maxint
+    best_score = sys.maxint
     best_svr = None
     best_params = None
 
@@ -136,10 +139,17 @@ def cross_validate():
             for eps in eps_vec:
                 svr = SVR(kernel="rbf", gamma=gamma, epsilon=eps, C=C)
                 svr.fit(train_features, train_signals)
-                score = svr.score(cv_features, cv_signals)
+
+                temp_file = os.path.basename(train_mats[0] + "_temp.pcl")
+                _serialize_svr(svr, WINDOW, temp_file)
+                scores = []
+                for cv_mat in cv_mats:
+                    scores.append(benchmark.benchmark(cv_mat, temp_file, False))
+                os.remove(temp_file)
+                score = np.mean(scores)
 
                 print("{0}\t{1}\t{2}\t{3}".format(C, gamma, eps, score))
-                if score > best_score:
+                if score < best_score:
                     best_score = score
                     best_svr = svr
                     best_params = (C, gamma, eps)
@@ -154,8 +164,8 @@ def just_train():
         return 1
 
     train_features, train_signals = _process_mats(sys.argv[1:-1])
-    #svr = SVR(kernel="rbf", gamma=1, epsilon=0.01, C=100)
-    svr = SVR(kernel="rbf", gamma=0.001, epsilon=0.01, C=1000)
+    #svr = SVR(kernel="rbf", gamma=0.01, epsilon=0.01, C=10)
+    svr = SVR(kernel="rbf", gamma=0.001, epsilon=0.001, C=1000)
     svr.fit(train_features, train_signals)
     _serialize_svr(svr, WINDOW, sys.argv[-1])
 

@@ -146,6 +146,9 @@ def cluster_events(events):
     for cl_events in by_cluster.values():
         clusters.append(EventCluster(get_consensus(cl_events),
                                      cl_events))
+    #    print("cluster")
+    #    for event in cl_events:
+    #        print("\t" + str(event.StartPoint))
     return clusters
 
 

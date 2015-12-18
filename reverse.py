@@ -14,19 +14,22 @@ def reverse(events, svr_file):
     num_reversed = 0
     new_events = []
     print("Samples:", len(events))
+    print("Num\tScore\tRev_score\tP-value\tP-value_rev\tNeed_reverse")
     for num, cluster in enumerate(clusters):
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                      nano_hmm.num_peaks)
-        #norm_trace = sp.normalize(event.trace)
-        #discr_trace = sp.discretize(norm_trace, nano_hmm.num_peaks)
-        #likelihood, weights = nano_hmm.hmm(discr_trace)
         score = nano_hmm.signal_peptide_score(discr_signal, peptide)
         rev_score = nano_hmm.signal_peptide_score(discr_signal, peptide[::-1])
         p_value = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
-        print(num, p_value, score, rev_score, rev_score > score)
+        p_value_rev = nano_hmm.compute_pvalue_raw(discr_signal, peptide[::-1])
+        print("{0}\t{1:5.2f}\t{2:5.2f}\t\t{3}\t{4}\t\t{5}"
+                .format(num, score, rev_score, p_value,
+                        p_value_rev, rev_score > score))
 
         new_events.append(cluster.events[0])
-        new_events[-1].eventTrace = new_events[-1].eventTrace[::-1]
+        if rev_score > score:
+            new_events[-1].eventTrace = new_events[-1].eventTrace[::-1]
+            num_reversed += 1
 
     print("Reversed:", num_reversed, "of", len(events))
     return new_events
