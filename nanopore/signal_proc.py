@@ -47,7 +47,7 @@ def read_mat(filename):
         open_pore = float(struct["openPore"].squeeze()[sample_id])
         correlation = float(struct["correlation"].squeeze()[sample_id])
         try:
-            peptide = str(struct["peptide"][sample_id])
+            peptide = str(struct["peptide"][sample_id]).strip()
         except IndexError:
             peptide = None
 
@@ -129,7 +129,7 @@ def normalize(events):
 
 
 def cluster_events(events):
-    NUM_FEATURES = 1000
+    NUM_FEATURES = 100
     feature_mat = []
     for event in events:
         features = discretize(event.eventTrace, NUM_FEATURES)
@@ -137,6 +137,7 @@ def cluster_events(events):
 
     feature_mat = np.array(feature_mat)
     labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
+    #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
 
     by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
@@ -146,9 +147,9 @@ def cluster_events(events):
     for cl_events in by_cluster.values():
         clusters.append(EventCluster(get_consensus(cl_events),
                                      cl_events))
-    #    print("cluster")
-    #    for event in cl_events:
-    #        print("\t" + str(event.StartPoint))
+        #print("cluster")
+        #for event in cl_events:
+        #    print("\t", len(event.peptide))
     return clusters
 
 
