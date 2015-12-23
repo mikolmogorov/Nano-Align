@@ -185,8 +185,8 @@ def compare_events(clusters, align, need_smooth):
 
         event_1 = sp.trim_flank_noise(event_1)
         event_2 = sp.trim_flank_noise(event_2)
-        event_1 = sp.discretize(event_1, len(prot))
-        event_2 = sp.discretize(event_2, len(prot))
+        event_1 = sp.discretize(event_1, len(prot) + 3)
+        event_2 = sp.discretize(event_2, len(prot) + 3)
 
         if align:
             reduced_1 = map(lambda i: scaled_1[i], xrange(0, event_len, 10))
@@ -198,13 +198,29 @@ def compare_events(clusters, align, need_smooth):
             plot_1 = event_1
             plot_2 = event_2
 
-        #print("Correlation", spearmanr(plot_1, plot_2))
+        print("Correlation", 1 - distance.correlation(plot_1, plot_2))
         plt.plot(np.repeat(plot_1, 2))
         plt.plot(np.repeat(plot_2, 2))
         plt.show()
 
         #plt.scatter(plot_1, plot_2)
         #plt.show()
+
+
+def correlation(clusters):
+
+    prot = clusters[0].events[0].peptide
+    signals = map(lambda c: sp.discretize(sp.trim_flank_noise(c.consensus),
+                                          len(prot) + 2), clusters)
+    coeffs = []
+    for event_1 in signals:
+        for event_2 in signals:
+
+            correlation = 1 - distance.correlation(event_1, event_2)
+            coeffs.append(correlation)
+
+    print(np.median(coeffs))
+
 
 def scale_events(main_signal, scaled_signal):
     median_main = np.median(main_signal)
@@ -274,9 +290,9 @@ def plot_blockades(clusters, window, alignment, need_smooth):
 
 
 WINDOW = 4
-AVERAGE = 10
+AVERAGE = 1
 ALIGNMENT = False
-SMOOTH = True
+SMOOTH = False
 
 
 def main():
@@ -290,6 +306,7 @@ def main():
     #clusters = sp.get_averages(events, AVERAGE)
 
     #plot_blockades(clusters, WINDOW, ALIGNMENT, SMOOTH)
+    #correlation(clusters)
     compare_events(clusters, ALIGNMENT, SMOOTH)
 
 

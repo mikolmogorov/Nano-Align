@@ -15,27 +15,35 @@ import nanopore.signal_proc as sp
 
 def rank_db_proteins(nano_hmm, signal, database):
     max_score = -sys.maxint
-    #chosen_prot = 0
     scores = {}
+    discretized = {}
+
     for prot_id, prot_seq in database.items():
-        score = nano_hmm.signal_peptide_score(signal, prot_seq)
+        num_peaks = len(prot_seq) + 3
+        if len(prot_seq) not in discretized:
+            d = sp.discretize(sp.trim_flank_noise(signal), num_peaks)
+            discretized[len(prot_seq)] = d
+
+        disc_signal = discretized[len(prot_seq)]
+        score = nano_hmm.signal_peptide_score(disc_signal, prot_seq)
         scores[prot_id] = score
 
     return sorted(scores.items(), key=lambda i: i[1], reverse=True)
 
 
-def detalize_cluster(nano_hmm, cluster, database):
+def detalize_cluster(nano_hmm, cluster, database, winner):
     norm_events = sp.get_averages(cluster.events, 1)
     global_rankings = defaultdict(list)
     for enum, event in enumerate(norm_events):
-        discr_signal = sp.discretize(sp.trim_flank_noise(event.consensus),
-                                     nano_hmm.num_peaks)
-        rankings = rank_db_proteins(nano_hmm, discr_signal, database)
+        rankings = rank_db_proteins(nano_hmm, event.consensus, database)
         for i in xrange(len(rankings)):
             global_rankings[rankings[i][0]].append(i)
-            if rankings[i][0] == "target":
+            if rankings[i][0] == "sp|P62805|H4_HUMAN":
                 target_rank = i
-        print("\tSignal {0}, target rank = {1}".format(enum, target_rank))
+            if rankings[i][0] == winner:
+                winner_rank = i
+        print("\tSignal {0}, target = {1}, winner = {2}".format(enum, target_rank,
+                                                                winner_rank))
 
     for prot in global_rankings:
         global_rankings[prot] = np.mean(global_rankings[prot])
@@ -52,37 +60,35 @@ def indetification_test(events, db_file, svr_file):
     #sp.normalize(events)
     #clusters = sp.get_averages(events, TRAIN_AVG)
     clusters = sp.cluster_events(events)
+
     peptide = clusters[0].events[0].peptide
+    num_peaks = len(peptide) + 3
     nano_hmm = NanoHMM(len(peptide), svr_file)
 
-    #build database
     database = {}
     for seq in SeqIO.parse(db_file, "fasta"):
         database[seq.id] = str(seq.seq)
     hist = defaultdict(int)
 
-    #testing
-    peptide_weights = peptide
     scores = []
     pvals = []
     print("No\tSize\tProt_id\t\tMax_score\tTrue_score\tP-value\tP-value_trg")
     for num, cluster in enumerate(clusters):
-        discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                     nano_hmm.num_peaks)
-
-        chosen_prot, max_score = rank_db_proteins(nano_hmm, discr_signal,
+        true_discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
+                                          num_peaks)
+        chosen_prot, max_score = rank_db_proteins(nano_hmm, cluster.consensus,
                                                   database)[0]
-        true_score = nano_hmm.signal_peptide_score(discr_signal, peptide)
+        true_score = nano_hmm.signal_peptide_score(true_discr_signal, peptide)
 
-        p_value = nano_hmm.compute_pvalue_raw(discr_signal, database[chosen_prot])
-        p_value_target = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
+        #p_value = nano_hmm.compute_pvalue_raw(true_discr_signal, database[chosen_prot])
+        p_value_target = nano_hmm.compute_pvalue_raw(true_discr_signal, peptide)
 
         hist[chosen_prot] += len(cluster.events)
-        print("{0}\t{1}\t{2:10}\t{3:7.4f}\t\t{4:7.4f}\t\t{5}\t\t{6}"
+        print("{0}\t{1}\t{2:10}\t{3:5.2f}\t{4:5.2f}\t\t{5}\t\t{6}"
                 .format(num, len(cluster.events), chosen_prot,
-                        max_score, true_score, p_value, p_value_target))
+                        max_score, true_score, "NA", p_value_target))
 
-        #detalize_cluster(nano_hmm, cluster, database)
+        #detalize_cluster(nano_hmm, cluster, database, chosen_prot)
 
     for prot_id in sorted(hist, reverse=True):
         print(prot_id, hist[prot_id])

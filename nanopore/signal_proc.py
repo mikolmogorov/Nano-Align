@@ -123,7 +123,10 @@ def normalize(events):
         #scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
         #event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
         #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace))
-        event.eventTrace = 1 - event.eventTrace / event.openPore
+        if np.median(event.eventTrace) < 0:
+            event.eventTrace = 1 - event.eventTrace / event.openPore
+        else:
+            event.eventTrace = event.eventTrace / event.openPore
         #event.eventTrace -= np.mean(event.eventTrace)
         #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace)) / np.std(event.eventTrace)
 
@@ -171,6 +174,8 @@ def get_consensus(events):
     medians = np.mean(matrix, axis=0)
 
     medians = (medians - np.mean(medians)) / np.std(medians)
+    #medians = -(medians / np.mean(medians))
+    #medians -= np.percentile(medians, 5)
     return medians
 
 

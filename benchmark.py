@@ -33,16 +33,19 @@ def benchmark(mat_file, svr_file, write_output):
 
     p_values = []
     for cluster in clusters:
+        num_peaks = len(peptide) + 3
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                     nano_hmm.num_peaks)
-        #discr_signal = (discr_signal - np.mean(discr_signal)) / np.std(discr_signal)
+                                     num_peaks)
+
+        #likelihood, weights = nano_hmm.hmm(discr_signal)
+        #p_value = nano_hmm.compute_pvalue(weights, peptide)
 
         p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
         p_values.append(p_value_raw)
         if write_output:
             print(len(cluster.events), p_value_raw)
 
-        #nano_hmm.plot_raw_vs_theory(discr_signal, peptide)
+        #nano_hmm.show_fit(discr_signal, weights, peptide)
 
     if write_output:
         print("Mean: ", np.mean(p_values))
