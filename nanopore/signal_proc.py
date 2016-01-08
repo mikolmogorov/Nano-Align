@@ -11,6 +11,7 @@ from scipy.spatial import distance
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from sklearn.cluster import AffinityPropagation
 from sklearn.cluster import KMeans
+from scipy.cluster import hierarchy
 
 
 class Struct(object):
@@ -57,6 +58,7 @@ def read_mat(filename):
                             open_pore, trace, correlation, peptide)
         events.append(out_struct)
 
+    print(len(events))
     return events
 
 
@@ -139,6 +141,10 @@ def cluster_events(events):
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
+
+    #hier = hierarchy.linkage(feature_mat, method="average", metric="correlation")
+    #labels = hierarchy.fcluster(hier, 1, criterion="distance")
+
     labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
     #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
 

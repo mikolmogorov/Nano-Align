@@ -31,14 +31,14 @@ def rank_db_proteins(nano_hmm, signal, database):
     return sorted(scores.items(), key=lambda i: i[1], reverse=True)
 
 
-def detalize_cluster(nano_hmm, cluster, database, winner):
+def detalize_cluster(nano_hmm, cluster, database, winner, target_id):
     norm_events = sp.get_averages(cluster.events, 1)
     global_rankings = defaultdict(list)
     for enum, event in enumerate(norm_events):
         rankings = rank_db_proteins(nano_hmm, event.consensus, database)
         for i in xrange(len(rankings)):
             global_rankings[rankings[i][0]].append(i)
-            if rankings[i][0] == "sp|P62805|H4_HUMAN":
+            if rankings[i][0] == target_id:
                 target_rank = i
             if rankings[i][0] == winner:
                 winner_rank = i
@@ -56,55 +56,72 @@ def detalize_cluster(nano_hmm, cluster, database, winner):
         #    print("\t\t{0}\t{1}".format(prot, prot_score))
 
 
-def indetification_test(events, db_file, svr_file):
+def identify(events_file, db_file, svr_file, write_output):
+    events = sp.read_mat(events_file)
     #sp.normalize(events)
-    #clusters = sp.get_averages(events, TRAIN_AVG)
-    clusters = sp.cluster_events(events)
+    clusters = sp.get_averages(events, 5)
+    #clusters = sp.cluster_events(events)
 
     peptide = clusters[0].events[0].peptide
     num_peaks = len(peptide) + 3
     nano_hmm = NanoHMM(len(peptide), svr_file)
 
     database = {}
+    target_id = None
     for seq in SeqIO.parse(db_file, "fasta"):
         database[seq.id] = str(seq.seq)
+        if database[seq.id] == peptide:
+            target_id = seq.id
     hist = defaultdict(int)
 
     scores = []
     pvals = []
-    print("No\tSize\tProt_id\t\tMax_score\tTrue_score\tP-value\tP-value_trg")
+    target_ranks = []
+    if write_output:
+        print("No\tSize\tProt_id\t\tMax_score\tTrue_score\tP-value\t"
+              "P-value_trg\tTrg_rank")
+
     for num, cluster in enumerate(clusters):
         true_discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                           num_peaks)
-        chosen_prot, max_score = rank_db_proteins(nano_hmm, cluster.consensus,
-                                                  database)[0]
+        rankings = rank_db_proteins(nano_hmm, cluster.consensus, database)
+        chosen_prot, max_score = rankings[0]
+        target_rank = None
+        for i, prot in enumerate(rankings):
+            if prot[0] == target_id:
+                target_rank = i
+                break
+        target_ranks.append(target_rank)
+
         true_score = nano_hmm.signal_peptide_score(true_discr_signal, peptide)
 
-        #p_value = nano_hmm.compute_pvalue_raw(true_discr_signal, database[chosen_prot])
+        p_value = nano_hmm.compute_pvalue_raw(true_discr_signal, database[chosen_prot])
         p_value_target = nano_hmm.compute_pvalue_raw(true_discr_signal, peptide)
 
         hist[chosen_prot] += len(cluster.events)
-        print("{0}\t{1}\t{2:10}\t{3:5.2f}\t{4:5.2f}\t\t{5}\t\t{6}"
-                .format(num, len(cluster.events), chosen_prot,
-                        max_score, true_score, "NA", p_value_target))
+        if write_output:
+            print("{0}\t{1}\t{2:10}\t{3:5.2f}\t{4:5.2f}\t{5}\t{6}\t{7}"
+                    .format(num, len(cluster.events), chosen_prot,
+                            max_score, true_score, p_value,
+                            p_value_target, target_rank))
 
-        #detalize_cluster(nano_hmm, cluster, database, chosen_prot)
+        #detalize_cluster(nano_hmm, cluster, database, chosen_prot, target_id)
 
-    for prot_id in sorted(hist, reverse=True):
-        print(prot_id, hist[prot_id])
-    print("Correct: {0:5.2f}%"
-                .format(100.0 * hist["target"] / sum(hist.values())))
+    if write_output:
+        for prot_id in sorted(hist, reverse=True):
+            print(prot_id, hist[prot_id])
+        print("Correct: {0:5.2f}%"
+                    .format(100.0 * hist[target_id] / sum(hist.values())))
 
+    return np.mean(target_ranks)
 
-TRAIN_AVG = 10
 
 def main():
     if len(sys.argv) != 4:
         print("Usage: identify.py mat_file db_file svr_file")
         return 1
 
-    events = sp.read_mat(sys.argv[1])
-    indetification_test(events, sys.argv[2], sys.argv[3])
+    identify(sys.argv[1], sys.argv[2], sys.argv[3], True)
 
 
 if __name__ == "__main__":

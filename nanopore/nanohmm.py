@@ -24,7 +24,7 @@ ROOT_DIR = os.path.dirname(__file__)
 def _signal_score(signal_1, signal_2):
     #return 1 - distance.correlation(signal_1, signal_2)
     #return spearmanr(signal_1, signal_2)[0]
-    return -distance.euclidean(signal_1, signal_2)
+    return -distance.sqeuclidean(signal_1, signal_2)
 
 class NanoHMM(object):
     def __init__(self, peptide_length, svr_file):
@@ -155,13 +155,14 @@ class NanoHMM(object):
             decoy_weights = "".join(weights_list)
             decoy_signal = self.peptide_signal(aa_to_weights(decoy_weights))
             decoy_score = self.signal_peptide_score(discr_signal, decoy_weights)
+            #decoy_score = self.signal_peptide_score(decoy_signal, peptide)
             #scores.append(decoy_score)
             if decoy_score > score:
                 decoy_winner = decoy_signal
                 misspred += 1
 
         p_value = float(misspred) / 10000
-        #print(np.median(scores))
+        #print(np.median(scores), score)
         #print(p_value)
         #self.plot_raw_vs_theory(discr_signal, peptide, decoy_winner)
         return float(misspred) / 10000

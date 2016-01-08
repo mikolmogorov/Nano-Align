@@ -24,9 +24,9 @@ def _most_common(lst):
 
 def benchmark(mat_file, svr_file, write_output):
     events = sp.read_mat(mat_file)
-    #sp.normalize(events)
-    #clusters = sp.get_averages(events, TEST_AVG)
-    clusters = sp.cluster_events(events)
+    sp.normalize(events)
+    clusters = sp.get_averages(events, 10)
+    #clusters = sp.cluster_events(events)
 
     peptide = clusters[0].events[0].peptide
     nano_hmm = NanoHMM(len(peptide), svr_file)
@@ -51,9 +51,6 @@ def benchmark(mat_file, svr_file, write_output):
         print("Mean: ", np.mean(p_values))
         print("Median: ", np.median(p_values))
     return np.median(p_values)
-
-
-TEST_AVG = 10
 
 
 def main():
