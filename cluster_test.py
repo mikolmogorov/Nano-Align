@@ -19,6 +19,8 @@ import math
 
 import nanopore.signal_proc as sp
 
+from estimate_length import gcd_features
+
 def rand_jitter(arr):
     stdev = .01*(max(arr)-min(arr))
     return arr + np.random.randn(len(arr)) * stdev
@@ -48,6 +50,7 @@ def distance_test(events):
 
 def cluster_test(events):
     sp.normalize(events)
+    #events = sp.filter_by_time(events, 1.0, 5.0)
 
     NUM_FEATURES = 50
     feature_mat = []
@@ -57,11 +60,15 @@ def cluster_test(events):
         by_peptide[event.peptide].append(event)
     clusters = []
     for peptide in by_peptide:
-        clusters.extend(sp.get_averages(by_peptide[peptide], 3))
+        clusters.extend(sp.get_averages(by_peptide[peptide], 1))
 
     for cluster in clusters:
         features = sp.discretize(cluster.consensus,
                                  len(cluster.events[0].peptide) + 4)[:24]
+        #xx, features = peak_features(cluster.consensus, 20)
+        features = gcd_features(cluster.consensus)
+        #features = get_spectra(cluster.consensus)
+        #features = characteristic_peaks(cluster.consensus)
         #print(cluster.events[0].peptide)
         #f, den = signal.periodogram(cluster.consensus)
         #print(len(f))
@@ -73,6 +80,12 @@ def cluster_test(events):
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
+    #distances = np.zeros((len(clusters), len(clusters)))
+    #for i in xrange(len(clusters)):
+    #    for j in xrange(len(clusters)):
+    #        if i != j:
+    #            distances[i][j] = score(feature_mat[i], feature_mat[j])
+
     hier = hierarchy.linkage(feature_mat, method="average", metric="euclidean")
 
     def llf(lid):
@@ -83,7 +96,6 @@ def cluster_test(events):
     pca = PCA(2)
     pca.fit(feature_mat)
     new_x = pca.transform(feature_mat)
-    #new_x = feature_mat
     colors = map(lambda c: len(c.events[0].peptide), clusters)
     fig = plt.subplot()
     #fig.set_xscale("log")
@@ -93,9 +105,9 @@ def cluster_test(events):
     fig.grid(True)
     plt.show()
 
-    #labels = hierarchy.fcluster(hier, 200, criterion="distance")
-    #labels = hierarchy.fcluster(hier, 0.9)
-    labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
+    #labels = hierarchy.fcluster(hier, 0.4, criterion="distance")
+    #labels = hierarchy.fcluster(hier, 0.95)
+    labels = AffinityPropagation(damping=0.9).fit_predict(feature_mat)
     #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
 
     by_cluster = defaultdict(list)
@@ -113,7 +125,7 @@ def cluster_test(events):
             print("\t", len(cluster.events[0].peptide))
             hist[len(cluster.events[0].peptide)] += 1
 
-        if len(cl_events) > 5:
+        if len(cl_events) > 1:
             error = 0
             major = max(hist, key=hist.get)
             for pep in hist:

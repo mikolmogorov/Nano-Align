@@ -33,6 +33,14 @@ class Struct(object):
 EventCluster = namedtuple("EventCluster", ["consensus", "events"])
 
 
+def filter_by_time(events, min_time, max_time):
+    new_events = list(filter(lambda e: min_time <= e.ms_Dwell <= max_time,
+                             events))
+    print("Filtered {0}%"
+                .format(float(len(events) - len(new_events)) / len(events)))
+    return new_events
+
+
 def read_mat(filename):
     mat_file = sio.loadmat(filename)
     struct = mat_file["Struct"][0][0]
@@ -58,7 +66,6 @@ def read_mat(filename):
                             open_pore, trace, correlation, peptide)
         events.append(out_struct)
 
-    print(len(events))
     return events
 
 
@@ -128,7 +135,7 @@ def normalize(events):
         if np.median(event.eventTrace) < 0:
             event.eventTrace = 1 - event.eventTrace / event.openPore
         else:
-            event.eventTrace = event.eventTrace / event.openPore
+            event.eventTrace = -event.eventTrace / event.openPore
         #event.eventTrace -= np.mean(event.eventTrace)
         #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace)) / np.std(event.eventTrace)
 
