@@ -8,18 +8,18 @@ from itertools import product
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from sklearn.decomposition import PCA
-from sklearn.cluster import AffinityPropagation
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN, AffinityPropagation
+from sklearn.mixture import GMM
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from scipy.spatial import distance
 from scipy import signal
 import math
 
 import nanopore.signal_proc as sp
 
-from estimate_length import gcd_features
 
 def rand_jitter(arr):
     stdev = .01*(max(arr)-min(arr))
@@ -47,10 +47,76 @@ def distance_test(events):
         #plt.hist(distances, bins=100)
         #plt.show()
 
+def peptide_color_label(peptide):
+    if peptide.startswith("MARTKQ"):
+        return "red", "H32"
+    elif peptide.startswith("MSGRGK"):
+        return "green", "H4"
+    elif peptide.startswith("LQKRP"):
+        return "yellow", "H3"
+    elif peptide.startswith("SPYSSD"):
+        return "blue", "CCL5"
+    else:
+        return None
+
+
+def draw_pca(feature_mat, clusters):
+    pca = PCA(2)
+    pca.fit(feature_mat)
+    new_x = pca.transform(feature_mat)
+
+    by_peptide = defaultdict(list)
+    for i in xrange(len(clusters)):
+        by_peptide[clusters[i].events[0].peptide].append(new_x[i])
+
+    fig = plt.subplot()
+    for peptide, proj in by_peptide.items():
+        proj = np.array(proj)
+        color, label = peptide_color_label(peptide)
+        fig.scatter(rand_jitter(proj[:, 0]), rand_jitter(proj[:, 1]), s=50,
+                    alpha=0.5, c=color, label=label)
+
+    #red_patch = mpatches.Patch(color="red", label="H32")
+    #green_patch = mpatches.Patch(color="green", label="H4")
+    #yellow_patch = mpatches.Patch(color="yellow", label="H3")
+    #blue_patch = mpatches.Patch(color="blue", label="CCL5")
+
+    fig.grid(True)
+    fig.legend()
+    plt.show()
+
+
+def gmm_cluster(feature_mat, clusters):
+    gmm = GMM(n_components=3, covariance_type="tied")
+    labels = gmm.fit_predict(feature_mat)
+
+    pca = PCA(2)
+    pca.fit(feature_mat)
+    new_x = pca.transform(feature_mat)
+
+    proj_means = pca.transform(gmm.means_)
+
+    by_peptide = defaultdict(list)
+    for i in xrange(len(clusters)):
+        by_peptide[clusters[i].events[0].peptide].append(new_x[i])
+
+    fig = plt.subplot()
+    for peptide, proj in by_peptide.items():
+        proj = np.array(proj)
+        color, label = peptide_color_label(peptide)
+        fig.scatter(rand_jitter(proj[:, 0]), rand_jitter(proj[:, 1]), s=50,
+                    alpha=0.5, c=color, label=label)
+
+    fig.scatter(proj_means[:, 0], proj_means[:, 1], marker="x", c="black")
+
+    fig.legend()
+    plt.show()
+    return labels
+
 
 def cluster_test(events):
     sp.normalize(events)
-    #events = sp.filter_by_time(events, 1.0, 5.0)
+    events = sp.filter_by_time(events, 1.0, 20.0)
 
     NUM_FEATURES = 50
     feature_mat = []
@@ -64,51 +130,27 @@ def cluster_test(events):
 
     for cluster in clusters:
         features = sp.discretize(cluster.consensus,
-                                 len(cluster.events[0].peptide) + 4)[:24]
-        #xx, features = peak_features(cluster.consensus, 20)
-        features = gcd_features(cluster.consensus)
-        #features = get_spectra(cluster.consensus)
-        #features = characteristic_peaks(cluster.consensus)
-        #print(cluster.events[0].peptide)
-        #f, den = signal.periodogram(cluster.consensus)
-        #print(len(f))
-        #plt.semilogy(den[:1000])
-        #plt.show()
+                                 len(cluster.events[0].peptide) + 3)[:23]
         #features = sp.discretize(sp.trim_flank_noise(cluster.consensus), NUM_FEATURES)
-        #features = np.fft.fft(cluster.consensus, 100)
-        #features = den[:500]
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
-    #distances = np.zeros((len(clusters), len(clusters)))
-    #for i in xrange(len(clusters)):
-    #    for j in xrange(len(clusters)):
-    #        if i != j:
-    #            distances[i][j] = score(feature_mat[i], feature_mat[j])
 
     hier = hierarchy.linkage(feature_mat, method="average", metric="euclidean")
 
     def llf(lid):
-        return str(len(clusters[lid].events[0].peptide))
+        return peptide_color_label((clusters[lid].events[0].peptide))[1]
     hierarchy.dendrogram(hier, leaf_label_func=llf, leaf_font_size=10)
     plt.show()
 
-    pca = PCA(2)
-    pca.fit(feature_mat)
-    new_x = pca.transform(feature_mat)
-    colors = map(lambda c: len(c.events[0].peptide), clusters)
-    fig = plt.subplot()
-    #fig.set_xscale("log")
-    #fig.set_yscale("log")
-    fig.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
-                alpha=0.5, c=colors)
-    fig.grid(True)
-    plt.show()
+    #draw_pca(feature_mat, clusters)
 
     #labels = hierarchy.fcluster(hier, 0.4, criterion="distance")
     #labels = hierarchy.fcluster(hier, 0.95)
-    labels = AffinityPropagation(damping=0.9).fit_predict(feature_mat)
+    #labels = AffinityPropagation(damping=0.9).fit_predict(feature_mat)
+    #labels = DBSCAN(eps=0.001, min_samples=20).fit_predict(feature_mat)
     #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
+    labels = gmm_cluster(feature_mat, clusters)
 
     by_cluster = defaultdict(list)
     for event, clust_id in enumerate(labels):
@@ -122,8 +164,8 @@ def cluster_test(events):
         hist = defaultdict(int)
         sizes.append(len(cl_events))
         for cluster in cl_events:
-            print("\t", len(cluster.events[0].peptide))
-            hist[len(cluster.events[0].peptide)] += 1
+            print("\t", peptide_color_label(cluster.events[0].peptide)[1])
+            hist[peptide_color_label(cluster.events[0].peptide)[1]] += 1
 
         if len(cl_events) > 1:
             error = 0

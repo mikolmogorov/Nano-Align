@@ -9,6 +9,7 @@ import random
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 from scipy.spatial import distance
 from scipy.stats import spearmanr
@@ -253,11 +254,11 @@ def plot_blockades(clusters, window, alignment, need_smooth):
         model_interp = interp_fun(xrange(event_len))
 
         model_scale = np.percentile(model_interp, 75) - np.percentile(model_interp, 25)
-        model_scaled = (model_interp - np.median(model_interp)) / model_scale
+        model_scaled = (model_interp - np.median(model_interp)) / np.std(model_interp)
         #print(model_scale, np.median(model_interp))
 
         event_scale = np.percentile(event, 75) - np.percentile(event, 25)
-        event = (event - np.median(event)) / event_scale
+        event = (event - np.median(event)) / np.std(event)
         model_scaled = scale_events(event, model_interp)
         ###
 
@@ -271,28 +272,29 @@ def plot_blockades(clusters, window, alignment, need_smooth):
             event_plot = event
             model_plot = model_scaled
 
-        event_plot = sp.discretize(event_plot, len(prot))
-        model_plot = sp.discretize(model_plot, len(prot))
+        #event_plot = sp.discretize(event_plot, len(prot))
+        #model_plot = sp.discretize(model_plot, len(prot))
 
         print(1 - distance.correlation(event_plot, model_plot))
-        plt.plot(event_plot, label="blockade")
+        matplotlib.rcParams.update({"font.size": 16})
+        plt.plot(event_plot, label="experiment")
         plt.plot(model_plot, label="model")
-        plt.legend(loc="lower right")
+        plt.legend(loc="upper right")
 
-        # adding AAs text:
+        #adding AAs text:
         #event_mean = np.mean(event)
         #acids_pos = get_acids_positions(prot, window, len(event_plot))
         #for i, aa in enumerate(prot):
-        #    plt.text(acids_pos[i], event_mean-0.1, aa, fontsize=10)
+        #    plt.text(acids_pos[i], event_mean-2, aa, fontsize=16)
 
         plt.show()
 
 
 
 WINDOW = 4
-AVERAGE = 1
+AVERAGE = 10
 ALIGNMENT = False
-SMOOTH = False
+SMOOTH = True
 
 
 def main():
@@ -301,13 +303,13 @@ def main():
         return 1
 
     events = sp.read_mat(sys.argv[1])
-    #sp.normalize(events)
-    clusters = sp.cluster_events(events)
-    #clusters = sp.get_averages(events, AVERAGE)
+    sp.normalize(events)
+    #clusters = sp.cluster_events(events)
+    clusters = sp.get_averages(events, AVERAGE)
 
-    #plot_blockades(clusters, WINDOW, ALIGNMENT, SMOOTH)
+    plot_blockades(clusters, WINDOW, ALIGNMENT, SMOOTH)
     #correlation(clusters)
-    compare_events(clusters, ALIGNMENT, SMOOTH)
+    #compare_events(clusters, ALIGNMENT, SMOOTH)
 
 
 if __name__ == "__main__":
