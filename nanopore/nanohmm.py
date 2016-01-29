@@ -16,6 +16,7 @@ from scipy.spatial import distance
 from scipy.stats import spearmanr, norm
 from sklearn.svm import SVR
 from sklearn.decomposition import PCA
+from scipy.interpolate import interp1d
 
 import nanopore.signal_proc as sp
 
@@ -25,6 +26,7 @@ def _signal_score(signal_1, signal_2):
     #return 1 - distance.correlation(signal_1, signal_2)
     #return spearmanr(signal_1, signal_2)[0]
     return -distance.sqeuclidean(signal_1, signal_2)
+    #return -np.median(np.array(signal_1) - np.array(signal_2))
 
 class NanoHMM(object):
     def __init__(self, peptide_length, svr_file):
@@ -165,24 +167,30 @@ class NanoHMM(object):
         #print(np.median(scores), score)
         #print(p_value)
         #self.plot_raw_vs_theory(discr_signal, peptide, decoy_winner)
-        return float(misspred) / 10000
+        return p_value
 
     def plot_raw_vs_theory(self, discr_signal, peptide, decoy_winner):
         theor_signal = self.peptide_signal(aa_to_weights(peptide))
-        #theor_signal = (theor_signal - np.mean(theor_signal)) / np.std(theor_signal)
 
         print("Score:", _signal_score(discr_signal, theor_signal))
         if decoy_winner is not None:
             print("Decoy score:", _signal_score(discr_signal, decoy_winner))
 
+        exper_smooth = interp1d(np.linspace(0, 10000, len(discr_signal)),
+                                discr_signal, kind="cubic")(xrange(10000))
+        theory_smooth = interp1d(np.linspace(0, 10000, len(theor_signal)),
+                                 theor_signal, kind="cubic")(xrange(10000))
+
         matplotlib.rcParams.update({'font.size': 16})
-        plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
-        plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
-        if decoy_winner is not None:
-            plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
-        plt.xlabel("AA position")
-        plt.ylabel("Normalized signal value")
-        plt.legend(loc="lower right")
+        #plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
+        #plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
+        plt.plot(exper_smooth, "b-", label="experiment")
+        plt.plot(theory_smooth, "g-", label="SVR model")
+        #if decoy_winner is not None:
+        #    plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
+        plt.xlabel("Sampling points")
+        plt.ylabel("Normalized signal")
+        plt.legend(loc="upper right")
         plt.show()
 
     def emission_prob(self, state_id, observation):

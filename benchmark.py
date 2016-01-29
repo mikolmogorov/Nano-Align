@@ -44,8 +44,8 @@ def full_benchmark(mat_file, svr_file):
         boxes.append(p_values)
         print(avg, np.median(p_values))
 
-    for b in boxes:
-        print(b)
+    #for b in boxes:
+    #    print(b)
     fig = plt.subplot()
     fig.set_yscale("log")
     fig.boxplot(boxes)

@@ -11,6 +11,7 @@ import numpy as np
 import nanopore.signal_proc as sp
 import matplotlib.pyplot as plt
 import scipy.fftpack as fftpack
+from scipy.stats import linregress
 from scipy.signal import find_peaks_cwt, periodogram
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from sklearn import mixture
@@ -20,19 +21,22 @@ import scipy.io as sio
 
 def peak_features(signal, n_peaks, minimum=False, ranged=False):
     signal = np.array(signal)
-    WINDOW = 8
+    WINDOW = 10
 
     peaks = []
     for pos in xrange(WINDOW, len(signal) - WINDOW):
         left = signal[pos - WINDOW: pos] - signal[pos]
         right = signal[pos + 1: pos + WINDOW + 1] - signal[pos]
 
+        #if (left < 0).all() and (right < 0).all():
+        #    peaks.append((pos, abs(np.mean(left) + np.mean(right))))
+        #if (left > 0).all() and (right > 0).all():
+        #    peaks.append((pos, abs(np.mean(left) + np.mean(right))))
         if not minimum:
             if (left < 0).all() and (right < 0).all():
                 peaks.append((pos, abs(np.mean(left) + np.mean(right))))
         else:
             if (left > 0).all() and (right > 0).all():
-                #peaks.append((pos, abs(np.mean(left) + np.mean(right))))
                 peaks.append((pos, signal[pos]))
 
     selected = sorted(peaks, key=lambda p: p[1], reverse=not minimum)[:n_peaks]
@@ -133,21 +137,23 @@ def draw_plot():
     d3 = "../datasets/ZD349_H4_D5.mat"
 
     peaks = []
-    for sample in [h32, h4, ccl5]:
+    for sample in [h32, h4, ccl5, h3]:
     #for sample in [d1, d2, d3]:
         print(sample)
         events = sp.read_mat(sample)
+        events = sp.filter_by_time(events, 1, 10)
         sample_peaks = []
         for event in events:
-            xx, yy = peak_features(event.eventTrace, 2000)
-            sample_peaks.append(len(xx) / event.ms_Dwell)
+            wind = 101 / event.ms_Dwell
+            wind -= wind % 2 - 1
+            sig = savitsky_golay(event.eventTrace, wind, 3)
+            xx, yy = peak_features(sig[1000:-1000], 2000)
+            sample_peaks.append(len(xx) / event.ms_Dwell * 5 / 4)
 
-        #peaks.append(sample_peaks)
-        peaks.extend(sample_peaks)
+        peaks.append(sample_peaks)
 
-    #plt.hist(peaks, bins=20, histtype="bar",
-    #         label=["H32", "H4", "CCL5"])
-    #plt.show()
+    #plt.hist(peaks, bins=20, histtype="bar", normed=1,
+    #         label=["H32", "H4", "CCL5", "H3"])
     #plt.hist(peaks, bins=20, histtype="bar", normed=1,
     #         label=["Day 3", "Day 4", "Day 5"])
     #plt.hist(peaks, bins=100)
@@ -155,50 +161,85 @@ def draw_plot():
     #plt.legend()
     #plt.show()
 
-    f, (s1, s2, s3, s4) = plt.subplots(4)
+    f, (s1, s2, s3) = plt.subplots(3)
 
-    d_hist, bin_edges = np.histogram(peaks, bins=200)
-    s1.plot(bin_edges[1:], d_hist)
+
+    s1.hist(peaks, bins=20, histtype="bar", normed=1,
+             label=["H32", "H4", "CCL5", "H3"])
+    #s1.xlabel("Noise frequency, 1/msec")
+    #s1.legend()
+
+    all_peaks = sum(peaks, [])
+    d_hist, bin_edges = np.histogram(all_peaks, bins=200)
+    s2.plot(bin_edges[1:], d_hist)
 
     window = signal.gaussian(5, std=1)
     smooth = np.convolve(d_hist, window, mode="same")
-    s2.plot(bin_edges[1:], smooth)
-
-    window = signal.gaussian(11, std=1)
-    smooth = np.convolve(d_hist, window, mode="same")
     s3.plot(bin_edges[1:], smooth)
 
-    window = signal.gaussian(17, std=1)
-    smooth = np.convolve(d_hist, window, mode="same")
-    s4.plot(bin_edges[1:], smooth)
     plt.show()
 
 
-def test_noise(filename):
+def test_noise(filename, real_prot):
     signal = sio.loadmat(filename)["b"].squeeze()
+    real_prot = sp.read_mat(real_prot)
 
-    dwell = 5
-    length = dwell * 100
+    #dwell = 5
+    #vals = []
+    #for i in xrange(0, len(signal) / length):
+    #    chunk = signal[i * length :  (i + 1) * length]
+    #    xx, yy = peak_features(chunk, 10000)
+    #    vals.append(len(xx) / dwell)
 
-    vals = []
-    for i in xrange(0, len(signal) / length):
-        chunk = signal[i * length :  (i + 1) * length]
-        xx, yy = peak_features(chunk, 10000)
-        vals.append(len(xx) / dwell)
+    for e in real_prot:
+        #plt.plot(e.eventTrace)
+        #plt.show()
+        #stds.append(np.std(e.eventTrace))
+    #plt.hist(stds, bins=50)
+    #plt.show()
+    #print(np.mean(stds))
+    #print(np.std(signal))
 
-    #plt.plot(signal[:length])
+        dwell = e.ms_Dwell
+        length = int(dwell * 100)
+        print(dwell, np.std(e.eventTrace), np.std(signal[:length]))
+
+        plt.plot(np.linspace(0, 10000, length),
+                 signal[:length] - np.median(signal[:length]), label="noise")
+        plt.plot(e.eventTrace - np.median(e.eventTrace),
+                 label="signal")
+        plt.legend()
+        plt.show()
+
     print(len(vals))
     plt.hist(vals, bins=50)
     plt.show()
 
 
+
 def pps_dist(events):
     peaks_count = {}
+    a = []
+    b = []
     for event in events:
-        xx, yy = peak_features(event.eventTrace, 2000)
-        #diff = np.median(np.array(xx[1:]) - np.array(xx[:-1]))
-        #peaks_count[event] = 10000 / np.mean(diff) / event.ms_Dwell
-        peaks_count[event] = len(xx) / event.ms_Dwell
+        wind = 101 / event.ms_Dwell
+        wind -= wind % 2 - 1
+        #div = savitsky_golay(np.gradient(event.eventTrace), wind, 3)
+        #xx, yy = peak_features(div[1000:-1000], 2000)
+        signal = savitsky_golay(event.eventTrace, wind, 3)
+        xx, yy = peak_features(signal, 2000)
+        peaks_count[event] = len(xx) / event.ms_Dwell * 5 / 4
+
+        b.append(len(xx))
+        a.append(event.ms_Dwell * 4 / 5)
+
+    print(linregress(a, b)[:2])
+    plt.scatter(a, b)
+    plt.show()
+
+    #plt.scatter(map(lambda e: np.mean(e.eventTrace), events),
+    #            map(peaks_count.get, events))
+    #plt.show()
 
     mean = np.mean(peaks_count.values())
     errors = map(lambda e: peaks_count[e] - mean, events)
@@ -221,14 +262,15 @@ def analyse(events):
         diff_2 = sorted(np.array(xx)[2:] - np.array(xx)[:-2])
         diff_3 = sorted(np.array(xx)[3:] - np.array(xx)[:-3])
         diff = diff_1 + diff_2 + diff_3
+        diff = np.array(diff) * event.ms_Dwell
 
         true_peaks = np.linspace(xx[0], xx[-1], len(event.peptide))
-        print(len(event.peptide))
+        #print(len(event.peptide))
 
-        peak_spectra = get_peak_spectra(event.eventTrace)
+        #peak_spectra = get_peak_spectra(event.eventTrace)
 
         #smoothing with Gaussian window
-        d_hist, bin_edges = np.histogram(diff, bins=100, range=(50, 500))
+        d_hist, bin_edges = np.histogram(diff, bins=100, range=(100, 1000))
         window = signal.gaussian(21, std=1)
         smooth = np.convolve(d_hist, window, mode="same")
         smooth_smooth = savitsky_golay(smooth, 5, 3)
@@ -236,76 +278,48 @@ def analyse(events):
         hist_x, hist_y = peak_features(smooth_smooth, 10)
         char_peaks = map(lambda x: int(bin_edges[x + 1]), hist_x)
 
-        cd = np.median(np.array(char_peaks[1:]) - np.array(char_peaks[:-1]))
-        print(event.ms_Dwell, char_peaks, cd)
+        cd = np.mean(np.array(char_peaks[1:]) - np.array(char_peaks[:-1]))
+        print(event.ms_Dwell, 10000 / len(xx) * event.ms_Dwell, char_peaks, cd)
         gcd_plot, gcds = gcd_fuzz(char_peaks)
         print("gcd", gcds)
 
-        fft = fftpack.rfft(smooth_smooth)
+        fft = fftpack.rfft(event.eventTrace)
         #length = gcds[0]
 
-        f, (s1, s2, s3, s4, s5) = plt.subplots(5)
+        f, (s1, s2, s3, s4) = plt.subplots(4)
         s1.plot(event.eventTrace)
         s1.scatter(xx, yy)
         #s1.scatter(true_peaks, map(lambda x: event.eventTrace[x], true_peaks))
 
-        s2.plot(bin_edges[1:], smooth_smooth)
-        s3.plot(range(20, len(peak_spectra) + 20), peak_spectra)
+        #s2.plot(bin_edges[1:], smooth_smooth)
+        grad = savitsky_golay(np.gradient(event.eventTrace), 101, 3)
+        g_x, g_y = peak_features(grad, 2000)
+        s2.plot(grad)
+        s2.scatter(g_x, g_y)
+        #s3.plot(range(20, len(peak_spectra) + 20), peak_spectra)
         #s5.plot(range(50, 300), gcds)
         #s4.plot(bin_edges[1:], smooth_smooth)
-        s4.plot(gcd_plot)
-        s5.plot(bin_edges[1:], fft ** 2)
-        s5.set_yscale("log")
+        s3.plot(gcd_plot)
+        s4.plot(np.linspace(0, 1000 / event.ms_Dwell, 1000),
+                savitsky_golay(fft ** 2, 31, 3)[:1000])
+        s4.set_yscale("log")
         plt.show()
 
         if gcds:
-            all_peaks.append(gcds[0] / event.ms_Dwell)
+            all_peaks.append(gcds[0])
         #if not math.isnan(cd):
-        #    all_peaks.append(cd)
+        #    all_peaks.append(10000 / cd / event.ms_Dwell)
 
     print(np.mean(all_peaks), np.std(all_peaks))
     plt.hist(all_peaks, bins=100)
     plt.show()
 
 
-def old_analyse(events):
-    events = sp.filter_by_time(events, 1.0, 30.0)
-    for event in events:
-        print(event.ms_Dwell)
-
-        #get_peaks(event.eventTrace)
-        #continue
-
-        trace = sp.trim_flank_noise(event.eventTrace)
-        smooth_signal = smooth(trace)
-
-        vals = get_spectra(trace)
-        #print(characteristic_peaks(trace))
-        #print event.ms_Dwell, map(lambda p: p + 20, find_peaks(vals))
-        #smooth_vals = get_peak_spectra(smooth_signal)
-        frqs, dens = periodogram(smooth_signal)
-        print(characteristic_peaks(smooth_signal))
-
-        f, (s1, s2, s3, s4) = plt.subplots(4)
-        s1.plot(trace)
-        #s2.plot(range(20, 200), vals)
-        s2.plot(vals)
-        s2.set_yscale("log")
-        s3.plot(smooth_signal)
-        #s4.plot(range(20, 200), smooth_vals)
-        s4.plot(dens[10:1000])
-        s4.set_yscale("log")
-        plt.show()
-        #plt.plot(event.eventTrace)
-        #plt.plot(smoothed)
-        #plt.show()
-
-
 def main():
-    #test_noise(sys.argv[1])
+    #test_noise(sys.argv[1], sys.argv[2])
     draw_plot()
     events = sp.read_mat(sys.argv[1])
-    events = sp.filter_by_time(events, 1.0, 30.0)
+    events = sp.filter_by_time(events, 1, 10.0)
     sp.normalize(events)
 
     pps_dist(events)

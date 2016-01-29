@@ -171,9 +171,9 @@ def cluster_events(events):
 
 def discretize(signal, num_peaks):
     discrete = []
-    peak_shift = len(signal) / (num_peaks - 1)
+    peak_shift = len(signal) / num_peaks
     for i in xrange(0, num_peaks):
-        signal_pos = i * (peak_shift - 1)
+        signal_pos = i * peak_shift + peak_shift / 2
         #discrete.append(signal[signal_pos])
         left = max(0, signal_pos - peak_shift / 2)
         right = min(len(signal), signal_pos + peak_shift / 2)
