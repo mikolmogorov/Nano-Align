@@ -7,8 +7,9 @@ import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import linregress
 
-from nanopore.nanohmm import NanoHMM, aa_to_weights
+from nanopore.nanohmm import NanoHMM
 import nanopore.signal_proc as sp
 
 
@@ -44,11 +45,12 @@ def full_benchmark(mat_file, svr_file):
         boxes.append(p_values)
         print(avg, np.median(p_values))
 
-    #for b in boxes:
-    #    print(b)
     fig = plt.subplot()
     fig.set_yscale("log")
     fig.boxplot(boxes)
+    fig.set_xlabel("Consensus size")
+    fig.set_ylabel("P-value")
+    fig.legend()
     plt.show()
 
 
@@ -62,18 +64,33 @@ def benchmark(mat_file, svr_file, write_output):
     nano_hmm = NanoHMM(len(peptide), svr_file)
 
     p_values = []
+    errors = defaultdict(list)
+
     for cluster in clusters:
         num_peaks = len(peptide) + 3
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
                                      num_peaks)
 
-        #likelihood, weights = nano_hmm.hmm(discr_signal)
-        #p_value = nano_hmm.compute_pvalue(weights, peptide)
+        for v, e in nano_hmm.get_errors(peptide, discr_signal):
+            errors[int(v * 1000)].append(e)
 
         p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
         p_values.append(p_value_raw)
         if write_output:
             print(len(cluster.events), p_value_raw)
+
+    medians = map(lambda x: np.median(x), errors.values())
+    poly = np.polyfit(errors.keys(), medians, 1)
+    poly_fun = np.poly1d(poly)
+
+    fig = plt.subplot()
+    fig.boxplot(errors.values(), positions=errors.keys(), sym="", widths=3)
+    fig.plot(errors.keys(), poly_fun(errors.keys()), "r-")
+    fig.set_xticks(np.linspace(60, 210, 11))
+    #fig.set_yticks(np.linspace(0, 2, 5))
+    fig.set_xlabel("AA volume, A^3")
+    fig.set_ylabel("Signed error")
+    plt.show()
 
     if write_output:
         print("Mean: ", np.mean(p_values))

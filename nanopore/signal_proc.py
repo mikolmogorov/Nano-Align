@@ -116,10 +116,6 @@ def trim_flank_noise(signal):
     right = find_local_minima(xrange(len(signal) - WINDOW / 2,
                                      int(0.95 * len(signal)), -1))
 
-    #plt.plot(signal)
-    #plt.plot([left, left], [min(signal), max(signal)])
-    #plt.plot([right, right], [min(signal), max(signal)])
-    #plt.show()
     return signal[left : right]
 
 
@@ -128,16 +124,10 @@ def normalize(events):
     ops = []
     ress = []
     for event in events:
-        #norm_trace = event.eventTrace - min(event.eventTrace)
-        #scale = np.percentile(norm_trace, 75) - np.percentile(norm_trace, 25)
-        #event.eventTrace = (norm_trace - np.mean(norm_trace)) / np.std(norm_trace)
-        #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace))
         if np.median(event.eventTrace) < 0:
             event.eventTrace = 1 - event.eventTrace / event.openPore
         else:
             event.eventTrace = -event.eventTrace / event.openPore
-        #event.eventTrace -= np.mean(event.eventTrace)
-        #event.eventTrace = (event.eventTrace - np.mean(event.eventTrace)) / np.std(event.eventTrace)
 
 
 def cluster_events(events):
@@ -148,9 +138,6 @@ def cluster_events(events):
         feature_mat.append(features)
 
     feature_mat = np.array(feature_mat)
-
-    #hier = hierarchy.linkage(feature_mat, method="average", metric="correlation")
-    #labels = hierarchy.fcluster(hier, 1, criterion="distance")
 
     labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
     #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
@@ -163,17 +150,14 @@ def cluster_events(events):
     for cl_events in by_cluster.values():
         clusters.append(EventCluster(get_consensus(cl_events),
                                      cl_events))
-        #print("cluster")
-        #for event in cl_events:
-        #    print("\t", len(event.peptide))
     return clusters
 
 
 def discretize(signal, num_peaks):
     discrete = []
-    peak_shift = len(signal) / num_peaks
+    peak_shift = len(signal) / (num_peaks - 1)
     for i in xrange(0, num_peaks):
-        signal_pos = i * peak_shift + peak_shift / 2
+        signal_pos = i * (peak_shift - 1)
         #discrete.append(signal[signal_pos])
         left = max(0, signal_pos - peak_shift / 2)
         right = min(len(signal), signal_pos + peak_shift / 2)
@@ -187,8 +171,6 @@ def get_consensus(events):
     medians = np.mean(matrix, axis=0)
 
     medians = (medians - np.mean(medians)) / np.std(medians)
-    #medians = -(medians / np.mean(medians))
-    #medians -= np.percentile(medians, 5)
     return medians
 
 

@@ -9,7 +9,7 @@ from Bio import SeqIO
 import matplotlib.pyplot as plt
 import numpy as np
 
-from nanopore.nanohmm import NanoHMM, aa_to_weights
+from nanopore.nanohmm import NanoHMM
 import nanopore.signal_proc as sp
 
 
@@ -58,7 +58,7 @@ def detalize_cluster(nano_hmm, cluster, database, winner, target_id):
 
 def identify(events_file, db_file, svr_file, write_output):
     events = sp.read_mat(events_file)
-    #sp.normalize(events)
+    sp.normalize(events)
     clusters = sp.get_averages(events, 5)
     #clusters = sp.cluster_events(events)
 
