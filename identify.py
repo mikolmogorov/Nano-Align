@@ -157,6 +157,8 @@ def full_identify(mat_file, db_file, svr_file):
     fig = plt.subplot()
     fig.set_yscale("log")
     fig.boxplot(boxes)
+    fig.set_xlabel("Consensus size")
+    fig.set_ylabel("P-value")
     plt.show()
 
 

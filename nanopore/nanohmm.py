@@ -103,18 +103,10 @@ class NanoHMM(object):
         if decoy_winner is not None:
             print("Decoy score:", _signal_score(discr_signal, decoy_winner))
 
-        exper_smooth = interp1d(np.linspace(0, 10000, len(discr_signal)),
-                                discr_signal, kind="cubic")(xrange(10000))
-        theory_smooth = interp1d(np.linspace(0, 10000, len(theor_signal)),
-                                 theor_signal, kind="cubic")(xrange(10000))
-
-        matplotlib.rcParams.update({'font.size': 16})
-        #plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
-        #plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
-        plt.plot(exper_smooth, "b-", label="experiment")
-        plt.plot(theory_smooth, "g-", label="SVR model")
-        #if decoy_winner is not None:
-        #    plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
+        plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
+        plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
+        if decoy_winner is not None:
+            plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
         plt.xlabel("Sampling points")
         plt.ylabel("Normalized signal")
         plt.legend(loc="upper right")
