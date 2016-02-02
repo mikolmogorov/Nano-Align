@@ -58,6 +58,7 @@ def detalize_cluster(nano_hmm, cluster, database, winner, target_id):
 
 def identify(events_file, db_file, svr_file, write_output):
     events = sp.read_mat(events_file)
+    events = sp.filter_by_time(events, 0.5, 20)
     sp.normalize(events)
     clusters = sp.get_averages(events, 5)
     #clusters = sp.cluster_events(events)
@@ -118,6 +119,7 @@ def identify(events_file, db_file, svr_file, write_output):
 
 def full_identify(mat_file, db_file, svr_file):
     events = sp.read_mat(mat_file)
+    events = sp.filter_by_time(events, 0.5, 20)
     sp.normalize(events)
     peptide = events[0].peptide
     num_peaks = len(peptide) + 3
@@ -152,14 +154,8 @@ def full_identify(mat_file, db_file, svr_file):
         boxes.append(p_values)
         print(avg, np.median(p_values))
 
-    #for b in boxes:
-    #    print(b)
-    fig = plt.subplot()
-    fig.set_yscale("log")
-    fig.boxplot(boxes)
-    fig.set_xlabel("Consensus size")
-    fig.set_ylabel("P-value")
-    plt.show()
+    for b in boxes:
+        print(",".join(map(str, b)))
 
 
 def main():

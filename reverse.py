@@ -10,6 +10,7 @@ def reverse(events, svr_file):
     clusters = sp.get_averages(events, 1)
     peptide = clusters[0].events[0].peptide
     nano_hmm = NanoHMM(len(peptide), svr_file)
+    num_peaks = len(peptide) + 3
 
     num_reversed = 0
     new_events = []
@@ -17,14 +18,13 @@ def reverse(events, svr_file):
     print("Num\tScore\tRev_score\tP-value\tP-value_rev\tNeed_reverse")
     for num, cluster in enumerate(clusters):
         discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                     nano_hmm.num_peaks)
+                                     num_peaks)
         score = nano_hmm.signal_peptide_score(discr_signal, peptide)
         rev_score = nano_hmm.signal_peptide_score(discr_signal, peptide[::-1])
-        p_value = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
-        p_value_rev = nano_hmm.compute_pvalue_raw(discr_signal, peptide[::-1])
-        print("{0}\t{1:5.2f}\t{2:5.2f}\t\t{3}\t{4}\t\t{5}"
-                .format(num, score, rev_score, p_value,
-                        p_value_rev, rev_score > score))
+        #p_value = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
+        #p_value_rev = nano_hmm.compute_pvalue_raw(discr_signal, peptide[::-1])
+        print("{0}\t{1:5.2f}\t{2:5.2f}\t\t{3}"
+                .format(num, score, rev_score, rev_score > score))
 
         new_events.append(cluster.events[0])
         if rev_score > score:

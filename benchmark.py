@@ -26,6 +26,7 @@ def _most_common(lst):
 
 def full_benchmark(mat_file, svr_file):
     events = sp.read_mat(mat_file)
+    events = sp.filter_by_time(events, 0.5, 20)
     sp.normalize(events)
     peptide = events[0].peptide
     num_peaks = len(peptide) + 3
@@ -45,17 +46,13 @@ def full_benchmark(mat_file, svr_file):
         boxes.append(p_values)
         print(avg, np.median(p_values))
 
-    fig = plt.subplot()
-    fig.set_yscale("log")
-    fig.boxplot(boxes)
-    fig.set_xlabel("Consensus size")
-    fig.set_ylabel("P-value")
-    fig.legend()
-    plt.show()
+    for box in boxes:
+        print(",".join(map(str, box)))
 
 
 def benchmark(mat_file, svr_file, write_output):
     events = sp.read_mat(mat_file)
+    events = sp.filter_by_time(events, 0.5, 20)
     sp.normalize(events)
     clusters = sp.get_averages(events, 10)
     #clusters = sp.cluster_events(events)
@@ -79,6 +76,7 @@ def benchmark(mat_file, svr_file, write_output):
         if write_output:
             print(len(cluster.events), p_value_raw)
 
+    """
     medians = map(lambda x: np.median(x), errors.values())
     poly = np.polyfit(errors.keys(), medians, 1)
     poly_fun = np.poly1d(poly)
@@ -91,6 +89,7 @@ def benchmark(mat_file, svr_file, write_output):
     fig.set_xlabel("AA volume, A^3")
     fig.set_ylabel("Signed error")
     plt.show()
+    """
 
     if write_output:
         print("Mean: ", np.mean(p_values))
@@ -99,8 +98,8 @@ def benchmark(mat_file, svr_file, write_output):
 
 
 def main():
-    benchmark(sys.argv[1], sys.argv[2], True)
-    #full_benchmark(sys.argv[1], sys.argv[2])
+    #benchmark(sys.argv[1], sys.argv[2], True)
+    full_benchmark(sys.argv[1], sys.argv[2])
 
 
 if __name__ == "__main__":

@@ -100,6 +100,7 @@ def _process_mats(mat_files):
     signals = []
     for mat in mat_files:
         events = sp.read_mat(mat)
+        events = sp.filter_by_time(events, 0.5, 20)
         sp.normalize(events)
         #train_events = sp.cluster_events(events)
         train_events = sp.get_averages(events, TRAIN_AVG)

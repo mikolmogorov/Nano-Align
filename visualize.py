@@ -117,6 +117,8 @@ def plot_blockades(clusters, window, need_smooth):
     #nanohmm = NanoHMM(len(prot), sys.argv[2])
     #model_svr = nanohmm.peptide_signal(prot)
 
+    correlations = []
+
     for cluster in clusters:
         event = cluster.consensus
         event = sp.trim_flank_noise(event)
@@ -188,11 +190,12 @@ SMOOTH = False
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: plot.py mat_file")
+    if len(sys.argv) < 2:
+        print("Usage: visualize.py mat_file")
         return 1
 
     events = sp.read_mat(sys.argv[1])
+    events = sp.filter_by_time(events, 0.5, 20)
     sp.normalize(events)
     #clusters = sp.cluster_events(events)
     clusters = sp.get_averages(events, AVERAGE)
@@ -203,4 +206,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

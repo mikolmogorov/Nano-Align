@@ -36,8 +36,8 @@ EventCluster = namedtuple("EventCluster", ["consensus", "events"])
 def filter_by_time(events, min_time, max_time):
     new_events = list(filter(lambda e: min_time <= e.ms_Dwell <= max_time,
                              events))
-    print("Filtered {0}%"
-                .format(float(len(events) - len(new_events)) / len(events)))
+    print("Filtered {0:5.2f}%"
+            .format(100 * float(len(events) - len(new_events)) / len(events)))
     return new_events
 
 

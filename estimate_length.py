@@ -10,8 +10,9 @@ from collections import defaultdict
 import numpy as np
 import nanopore.signal_proc as sp
 import matplotlib.pyplot as plt
+import matplotlib
 import scipy.fftpack as fftpack
-from scipy.stats import linregress
+from scipy.stats import linregress, gaussian_kde
 from scipy.signal import find_peaks_cwt, periodogram
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from sklearn import mixture
@@ -28,10 +29,6 @@ def peak_features(signal, n_peaks, minimum=False, ranged=False):
         left = signal[pos - WINDOW: pos] - signal[pos]
         right = signal[pos + 1: pos + WINDOW + 1] - signal[pos]
 
-        #if (left < 0).all() and (right < 0).all():
-        #    peaks.append((pos, abs(np.mean(left) + np.mean(right))))
-        #if (left > 0).all() and (right > 0).all():
-        #    peaks.append((pos, abs(np.mean(left) + np.mean(right))))
         if not minimum:
             if (left < 0).all() and (right < 0).all():
                 peaks.append((pos, abs(np.mean(left) + np.mean(right))))
@@ -137,16 +134,17 @@ def draw_plot():
     d3 = "../datasets/ZD349_H4_D5.mat"
 
     peaks = []
-    for sample in [h32, h4, ccl5, h3]:
+    for sample in [h32, h4, ccl5]:
     #for sample in [d1, d2, d3]:
         print(sample)
         events = sp.read_mat(sample)
-        events = sp.filter_by_time(events, 1, 10)
+        events = sp.filter_by_time(events, 0.5, 5)
         sample_peaks = []
         for event in events:
-            wind = 101 / event.ms_Dwell
-            wind -= wind % 2 - 1
-            sig = savitsky_golay(event.eventTrace, wind, 3)
+            #wind = 101 / event.ms_Dwell
+            #wind -= wind % 2 - 1
+            #sig = savitsky_golay(event.eventTrace, wind, 3)
+            sig = event.eventTrace
             xx, yy = peak_features(sig[1000:-1000], 2000)
             sample_peaks.append(len(xx) / event.ms_Dwell * 5 / 4)
 
@@ -161,13 +159,44 @@ def draw_plot():
     #plt.legend()
     #plt.show()
 
-    f, (s1, s2, s3) = plt.subplots(3)
+    x_axis = np.arange(0, 50, 0.1)
+    matplotlib.rcParams.update({"font.size": 16})
+    fig = plt.subplot()
 
+    colors = ["blue", "green", "red"]
+    labels = ["H32", "H4", "CCL5"]
 
+    for i, distr in enumerate(peaks):
+        density = gaussian_kde(distr)
+        density.covariance_factor = lambda: .25
+        density._compute_covariance
+        gauss_dens = density(x_axis)
+
+        fig.spines["right"].set_visible(False)
+        fig.spines["top"].set_visible(False)
+        fig.get_xaxis().tick_bottom()
+        fig.get_yaxis().tick_left()
+        fig.set_ylim(0, 0.16)
+
+        fig.plot(x_axis, gauss_dens, antialiased=True, linewidth=2, color=colors[i],
+                 alpha=0.7, label=labels[i])
+        fig.fill_between(x_axis, gauss_dens, alpha=0.5, antialiased=True,
+                         color=colors[i])
+        #fig.hist(distr, normed=1, range=(0,61), bins=20)
+
+    fig.set_xlabel("Fluctuation frequency, 1/ms")
+    legend = fig.legend(loc="lower left", frameon=False)
+    for label in legend.get_lines():
+            label.set_linewidth(3)
+    for label in legend.get_texts():
+        label.set_fontsize(16)
+    plt.show()
+
+    """
     s1.hist(peaks, bins=20, histtype="bar", normed=1,
-             label=["H32", "H4", "CCL5", "H3"])
-    #s1.xlabel("Noise frequency, 1/msec")
-    #s1.legend()
+             label=["H32", "H4", "CCL5"])
+    s1.set_xlabel("Noise frequency, 1/msec")
+    s1.legend()
 
     all_peaks = sum(peaks, [])
     d_hist, bin_edges = np.histogram(all_peaks, bins=200)
@@ -178,6 +207,7 @@ def draw_plot():
     s3.plot(bin_edges[1:], smooth)
 
     plt.show()
+    """
 
 
 def test_noise(filename, real_prot):
@@ -216,17 +246,17 @@ def test_noise(filename, real_prot):
     plt.show()
 
 
-
 def pps_dist(events):
     peaks_count = {}
     a = []
     b = []
     for event in events:
-        wind = 101 / event.ms_Dwell
-        wind -= wind % 2 - 1
+        #wind = 101 / event.ms_Dwell
+        #wind -= wind % 2 - 1
         #div = savitsky_golay(np.gradient(event.eventTrace), wind, 3)
         #xx, yy = peak_features(div[1000:-1000], 2000)
-        signal = savitsky_golay(event.eventTrace, wind, 3)
+        #signal = savitsky_golay(event.eventTrace, wind, 3)
+        signal = event.eventTrace[1000:-1000]
         xx, yy = peak_features(signal, 2000)
         peaks_count[event] = len(xx) / event.ms_Dwell * 5 / 4
 
@@ -317,9 +347,9 @@ def analyse(events):
 
 def main():
     #test_noise(sys.argv[1], sys.argv[2])
-    draw_plot()
+    #draw_plot()
     events = sp.read_mat(sys.argv[1])
-    events = sp.filter_by_time(events, 1, 10.0)
+    events = sp.filter_by_time(events, 0.5, 20.0)
     sp.normalize(events)
 
     pps_dist(events)
