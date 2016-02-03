@@ -68,8 +68,7 @@ class NanoHMM(object):
             kmer = flanked_peptide[i : i + self.window]
             if "-" not in kmer:
                 for aa in kmer:
-                    errors.append((_theoretical_signal(aa),
-                               exp_signal[i] - theor_signal[i]))
+                    errors.append((aa, exp_signal[i] - theor_signal[i]))
         return errors
 
     def compute_pvalue_raw(self, discr_signal, peptide):
@@ -113,18 +112,18 @@ class NanoHMM(object):
         plt.show()
 
     def peptide_signal(self, peptide):
-        peptide = aa_to_weights(peptide)
+        #peptide = aa_to_weights(peptide)
         flanked_peptide = ("-" * (self.window - 1) + peptide +
                            "-" * (self.window - 1))
         num_peaks = len(peptide) + self.window - 1
         signal = []
         for i in xrange(0, num_peaks):
             kmer = flanked_peptide[i : i + self.window]
-            signal.append(self.svr_predict(_kmer_features(kmer)))
-            #signal.append(_theoretical_signal(kmer))
+            #signal.append(self.svr_predict(_kmer_features(kmer)))
+            signal.append(_theoretical_signal(kmer))
 
-        signal = signal / np.std(signal)
-        #signal = (signal - np.mean(signal)) / np.std(signal)
+        #signal = signal / np.std(signal)
+        signal = (signal - np.mean(signal)) / np.std(signal)
         return signal
 
 
