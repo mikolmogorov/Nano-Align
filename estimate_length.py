@@ -124,21 +124,22 @@ def gcd_fuzz(numbers):
 
 
 def draw_plot():
-    h32 = "../H32_rev.mat"
-    h4 = "../H4_all_rev.mat"
-    ccl5 = "../CCL5_rev.mat"
-    h3 = "../H3N_rev.mat"
+    h32 = "../reversed/H32.mat"
+    h4 = "../reversed/H4_all.mat"
+    ccl5 = "../reversed/CCL5.mat"
+    h33 = "../reversed/H3N.mat"
 
     d1 = "../datasets/ZD349_H4_D3.mat"
     d2 = "../datasets/ZD349_H4_D4.mat"
     d3 = "../datasets/ZD349_H4_D5.mat"
 
     peaks = []
-    for sample in [h32, h4, ccl5]:
+    for sample in [h32, h4, ccl5, h33]:
     #for sample in [d1, d2, d3]:
         print(sample)
         events = sp.read_mat(sample)
-        events = sp.filter_by_time(events, 0.5, 5)
+        #events = sp.filter_by_time(events, len(events[0].peptide) / 40,
+        #                           len(events[0].peptide) / 5)
         sample_peaks = []
         for event in events:
             #wind = 101 / event.ms_Dwell
@@ -163,8 +164,8 @@ def draw_plot():
     matplotlib.rcParams.update({"font.size": 16})
     fig = plt.subplot()
 
-    colors = ["blue", "green", "red"]
-    labels = ["H32", "H4", "CCL5"]
+    colors = ["blue", "green", "red", "cyan"]
+    labels = ["H3.2", "H4", "CCL5", "H3N"]
 
     for i, distr in enumerate(peaks):
         density = gaussian_kde(distr)
