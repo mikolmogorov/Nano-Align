@@ -1,94 +1,63 @@
 from __future__ import print_function
 
 from collections import namedtuple, defaultdict
-import scipy.io as sio
 import numpy as np
 import random
 from copy import deepcopy
-import matplotlib.pyplot as plt
-from scipy.spatial import distance
 
-from statsmodels.nonparametric.smoothers_lowess import lowess
-from sklearn.cluster import AffinityPropagation
-from sklearn.cluster import KMeans
-from scipy.cluster import hierarchy
+#from sklearn.cluster import AffinityPropagation
+
+from nanopore.blockade import BlockadeCluster
 
 
-class Struct(object):
-    def __init__(self, fileTag, StartPoint, ms_Dwell, pA_Blockade, openPore,
-                 eventTrace, correlation, peptide):
-        self.fileTag = fileTag
-        self.StartPoint = StartPoint
-        self.ms_Dwell = ms_Dwell
-        self.pA_Blockade = pA_Blockade
-        self.openPore = openPore
-        self.eventTrace = eventTrace
-        self.correlation = correlation
-        self.peptide = peptide
+def preprocess_blockades(blockades, cluster_size=10,
+                         min_dwell=0.05, max_dwell=20):
+    """
+    Preprocesses blockades and outputs clusters
+    """
+    filtered = _filter_by_duration(blockades, min_dwell, max_dwell)
+    frac_current = _fractional_blockades(filtered)
+    clusters = _random_cluster(frac_current, cluster_size)
+    for cl in clusters:
+        cl.consensus = _normalize(_trim_flank_noise(cl.consensus))
 
-        self.norm_trace = None
-        self.discr_trace = None
+    return clusters
 
 
-EventCluster = namedtuple("EventCluster", ["consensus", "events"])
+def discretize(signal, protein_length):
+    """
+    Discretizes the signal assuming the given protein length
+    """
+    WINDOW = 4
+    num_peaks = protein_length + WINDOW - 1
+
+    discrete = []
+    peak_shift = len(signal) / (num_peaks - 1)
+    for i in xrange(0, num_peaks):
+        signal_pos = i * (peak_shift - 1)
+        #discrete.append(signal[signal_pos])
+        left = max(0, signal_pos - peak_shift / 2)
+        right = min(len(signal), signal_pos + peak_shift / 2)
+        discrete.append(np.mean(signal[left:right]))
+
+    return discrete
 
 
-def filter_by_time(events, min_time, max_time):
-    new_events = list(filter(lambda e: min_time <= e.ms_Dwell <= max_time,
-                             events))
+def _filter_by_duration(blockades, min_time, max_time):
+    """
+    Filters blockades by dwell duration
+    """
+    new_blockades = list(filter(lambda e: min_time <= e.ms_Dwell <= max_time,
+                             blockades))
     print("Filtered {0:5.2f}%"
-            .format(100 * float(len(events) - len(new_events)) / len(events)))
-    return new_events
+            .format(100 * float(len(blockades) - len(new_blockades)) / len(blockades)))
+    return new_blockades
 
 
-def read_mat(filename):
-    mat_file = sio.loadmat(filename)
-    struct = mat_file["Struct"][0][0]
-    event_traces = struct["eventTrace"]
-    num_samples = event_traces.shape[1]
-
-    events = []
-    for sample_id in xrange(num_samples):
-        file_tag = struct["fileTag"][sample_id]
-        start_point = float(struct["StartPoint"].squeeze()[sample_id])
-        dwell = float(struct["ms_Dwell"].squeeze()[sample_id])
-        pa_blockade = float(struct["pA_Blockade"].squeeze()[sample_id])
-        open_pore = float(struct["openPore"].squeeze()[sample_id])
-        correlation = float(struct["correlation"].squeeze()[sample_id])
-        try:
-            peptide = str(struct["peptide"][sample_id]).strip()
-        except IndexError:
-            peptide = None
-
-        trace = np.array(event_traces[:, sample_id])
-
-        out_struct = Struct(file_tag, start_point, dwell, pa_blockade,
-                            open_pore, trace, correlation, peptide)
-        events.append(out_struct)
-
-    return events
-
-
-def write_mat(events, filename):
-    dtype = [("fileTag", "O"), ("StartPoint", "O"), ("ms_Dwell", "O"),
-             ("pA_Blockade", "O"), ("eventTrace", "O"), ("openPore", "O"),
-             ("correlation", "O"), ("peptide", "O")]
-    file_tag_arr = np.array(map(lambda e: e.fileTag, events))
-    peptide_arr = np.array(map(lambda e: e.peptide, events))
-    start_arr = np.array(map(lambda e: e.StartPoint, events))
-    dwell_arr = np.array(map(lambda e: e.ms_Dwell, events))
-    pa_blockade_arr = np.array(map(lambda e: e.pA_Blockade, events))
-    open_pore_arr = np.array(map(lambda e: e.openPore, events))
-    event_trace_arr = np.array(map(lambda e: e.eventTrace, events))
-    corr_arr = np.array(map(lambda e: e.correlation, events))
-
-    struct = (file_tag_arr, [start_arr], [dwell_arr], [pa_blockade_arr],
-              np.transpose(event_trace_arr), [open_pore_arr],
-              [corr_arr], peptide_arr)
-    sio.savemat(filename, {"Struct" : np.array([[struct]], dtype=dtype)})
-
-
-def trim_flank_noise(signal):
+def _trim_flank_noise(signal):
+    """
+    Trims noisy flanking region
+    """
     WINDOW = int(0.01 * len(signal))
     def find_local_minima(pos_iter):
         max_good = 0
@@ -119,17 +88,50 @@ def trim_flank_noise(signal):
     return signal[left : right]
 
 
-def normalize(events):
-    pas = []
-    ops = []
-    ress = []
-    for event in events:
-        if np.median(event.eventTrace) < 0:
-            event.eventTrace = 1 - event.eventTrace / event.openPore
+def _fractional_blockades(blockades):
+    """
+    Converts blockades curents to fractional values
+    """
+    blockades = deepcopy(blockades)
+    for blockade in blockades:
+        if np.median(blockade.eventTrace) < 0:
+            blockade.eventTrace = 1 - blockade.eventTrace / blockade.openPore
         else:
-            event.eventTrace = -event.eventTrace / event.openPore
+            blockade.eventTrace = -blockade.eventTrace / blockade.openPore
+
+    return blockades
 
 
+def _get_consensus(signals):
+    """
+    Calculates consensus of multiple signals
+    """
+    matrix = np.array(map(lambda e: e.eventTrace, signals))
+    medians = np.mean(matrix, axis=0)
+    return medians
+
+
+def _normalize(signal):
+    return (signal - np.mean(signal)) / np.std(signal)
+
+
+def _random_cluster(blockades, bin_size):
+    """
+    Randomly splits blockades into clusters and calculates a consensus
+    """
+    averages = []
+    blockades = deepcopy(blockades)
+    if bin_size > 1:
+        random.shuffle(blockades)
+    for event_bin in xrange(0, len(blockades) / bin_size):
+        cl_blockades = blockades[event_bin*bin_size : (event_bin+1)*bin_size]
+        avg_signal = _get_consensus(cl_blockades)
+        averages.append(BlockadeCluster(avg_signal, cl_blockades))
+
+    return averages
+
+
+"""
 def cluster_events(events):
     NUM_FEATURES = 100
     feature_mat = []
@@ -151,41 +153,4 @@ def cluster_events(events):
         clusters.append(EventCluster(get_consensus(cl_events),
                                      cl_events))
     return clusters
-
-
-def discretize(signal, num_peaks):
-    discrete = []
-    peak_shift = len(signal) / (num_peaks - 1)
-    for i in xrange(0, num_peaks):
-        signal_pos = i * (peak_shift - 1)
-        #discrete.append(signal[signal_pos])
-        left = max(0, signal_pos - peak_shift / 2)
-        right = min(len(signal), signal_pos + peak_shift / 2)
-        discrete.append(np.mean(signal[left:right]))
-
-    return discrete
-
-
-def get_consensus(events):
-    matrix = np.array(map(lambda e: e.eventTrace, events))
-    medians = np.mean(matrix, axis=0)
-
-    medians = (medians - np.mean(medians)) / np.std(medians)
-    return medians
-
-
-def smooth(signal, frac):
-    x = lowess(signal, range(len(signal)), return_sorted=False, frac=frac)
-    return x
-
-
-def get_averages(events, bin_size):
-    averages = []
-    events = deepcopy(events)
-    random.shuffle(events)
-    for event_bin in xrange(0, len(events) / bin_size):
-        cl_events = events[event_bin*bin_size : (event_bin+1)*bin_size]
-        avg_signal = get_consensus(cl_events)
-        averages.append(EventCluster(avg_signal, cl_events))
-
-    return averages
+"""

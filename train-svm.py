@@ -6,115 +6,47 @@ from collections import defaultdict
 import random
 from string import maketrans
 from itertools import product
-import pickle
 import os
 
-import numpy as np
-from sklearn.svm import SVR
-from sklearn.decomposition import PCA
-from sklearn.linear_model import RANSACRegressor
-import matplotlib.pyplot as plt
-import matplotlib
+#import numpy as np
+#from sklearn.svm import SVR
+#from sklearn.decomposition import PCA
+#from sklearn.linear_model import RANSACRegressor
+#import matplotlib.pyplot as plt
+#import matplotlib
 
 import nanopore.signal_proc as sp
-import benchmark
-import identify
+from nanopore.blockade import read_mat
+from nanopore.svr_blockade import SvrBlockade
 
 
-AA_SIZE_TRANS = maketrans("GASCUTDPNVBEQZHLIMKXRFYW-",
-                          "MMMMMSSSSSSIIIIIIIIILLLL-")
-def aa_to_weights(kmer):
-    return kmer.translate(AA_SIZE_TRANS)
+TRAIN_AVG = 1
+def simple_train():
+    if len(sys.argv) < 3:
+        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file")
+        return 1
 
+    mat_files = sys.argv[1:-1]
+    out_file = sys.argv[-1]
 
-def _kmer_features(kmer):
-    miniscule = kmer.count("M")
-    small = kmer.count("S")
-    intermediate = kmer.count("I")
-    large = kmer.count("L")
-    return (large, intermediate, small, miniscule)
-
-
-def _peptide_to_features(peptide, window):
-    num_peaks = len(peptide) + window - 1
-    flanked_peptide = ("-" * (window - 1) + peptide +
-                       "-" * (window - 1))
-    features = []
-    for i in xrange(0, num_peaks):
-        kmer = flanked_peptide[i : i + window]
-        feature = _kmer_features(kmer)
-
-        features.append(feature)
-
-    return features
-
-
-def _get_features(clusters, window):
-    features = []
-    signals = []
-    peptide = clusters[0].events[0].peptide
-    num_peaks = len(peptide) + window - 1
-
-    for cluster in clusters:
-        discretized = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                    num_peaks)
-        features.extend(_peptide_to_features(aa_to_weights(peptide), window))
-        signals.extend(discretized)
-
-    return features, signals
-
-
-def _serialize_svr(svr, window, out_file):
-    pickle.dump(svr, open(out_file, "wb"))
-
-
-def _score_svr(svr, clusters, window):
-    def rand_jitter(arr):
-        stdev = .01*(max(arr)-min(arr))
-        return arr + np.random.randn(len(arr)) * stdev
-
-    features = []
-    signals = []
-    peptide = clusters[0].events[0].peptide
-    num_peaks = len(peptide) + window - 1
-
-    for cluster in clusters:
-        discretized = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                    num_peaks)
-        features.extend(_peptide_to_features(aa_to_weights(peptide), window))
-        signals.extend(discretized)
-
-    print(svr.score(features, signals))
-    #pca = PCA(2)
-    #pca.fit(features)
-    #new_x = pca.transform(features)
-    #plt.hist(signals, bins=50)
-    #plt.show()
-    #plt.scatter(rand_jitter(new_x[:, 0]), rand_jitter(new_x[:, 1]), s=50,
-    #            c=signals, alpha=0.5)
-    #plt.show()
-
-
-def _process_mats(mat_files):
-    features = []
+    peptides = []
     signals = []
     for mat in mat_files:
-        events = sp.read_mat(mat)
-        events = sp.filter_by_time(events, 0.5, 20)
-        sp.normalize(events)
-        #train_events = sp.cluster_events(events)
-        train_events = sp.get_averages(events, TRAIN_AVG)
-        f, s = _get_features(train_events, WINDOW)
-        features.extend(f)
-        signals.extend(s)
+        blockades = read_mat(mat)
+        clusters = sp.preprocess_blockades(blockades, cluster_size=TRAIN_AVG,
+                                           min_dwell=0.5, max_dwell=20)
+        mat_peptide = clusters[0].blockades[0].peptide
+        peptides.extend([mat_peptide] * len(clusters))
 
-    return features, signals
+        for cluster in clusters:
+            signals.append(sp.discretize(cluster.consensus, len(mat_peptide)))
 
-
-WINDOW = 4
-TRAIN_AVG = 1
+    svr_model = SvrBlockade()
+    svr_model.train(peptides, signals)
+    svr_model.store_pickle(out_file)
 
 
+"""
 def cross_validate():
     if len(sys.argv) != 5:
         print("Usage: train-svm.py train_signals cv_signals db_file out_file")
@@ -161,23 +93,12 @@ def cross_validate():
 
     print(*best_params)
     _serialize_svr(best_svr, WINDOW, sys.argv[4])
-
-
-def just_train():
-    if len(sys.argv) < 3:
-        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file")
-        return 1
-
-    train_features, train_signals = _process_mats(sys.argv[1:-1])
-    #svr = SVR(kernel="rbf", gamma=0.01, epsilon=0.01, C=10)
-    svr = SVR(kernel="rbf", C=1000, gamma=0.001, epsilon=0.01)
-    svr.fit(train_features, train_signals)
-    _serialize_svr(svr, WINDOW, sys.argv[-1])
+"""
 
 
 def main():
     #cross_validate()
-    just_train()
+    simple_train()
 
 
 if __name__ == "__main__":
