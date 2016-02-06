@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 
+#(c) 2015-2016 by Authors
+#This file is a part of Nano-Align program.
+#Released under the BSD license (see LICENSE file)
+
+"""
+Trains SVR model ans serializes it to file
+"""
+
 from __future__ import print_function
 import sys
 from collections import defaultdict
@@ -8,12 +16,6 @@ from string import maketrans
 from itertools import product
 import os
 
-#import numpy as np
-#from sklearn.svm import SVR
-#from sklearn.decomposition import PCA
-#from sklearn.linear_model import RANSACRegressor
-#import matplotlib.pyplot as plt
-#import matplotlib
 
 import nanopore.signal_proc as sp
 from nanopore.blockade import read_mat

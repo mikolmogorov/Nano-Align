@@ -9,6 +9,7 @@ This module defines blockade structure and IO functions
 import scipy.io as sio
 import numpy as np
 
+
 class Blockade(object):
     def __init__(self, fileTag, StartPoint, ms_Dwell, pA_Blockade, openPore,
                  eventTrace, correlation, peptide):
