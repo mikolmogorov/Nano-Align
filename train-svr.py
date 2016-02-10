@@ -50,12 +50,9 @@ def cross_validate(train_mats, cv_mats, db_file, out_file):
     """
     CLUSTER_SIZE = 10
 
-    #eps_vec = [0.01, 0.001, 0.0001, 0.00001]
-    #C_vec = [1, 10, 100, 1000, 10000, 100000]
-    #gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
-    eps_vec = [0.01]
-    C_vec = [1000, 10000]
-    gamma_vec = [0.001, 0.01]
+    eps_vec = [0.01, 0.001, 0.0001, 0.00001]
+    C_vec = [1, 10, 100, 1000, 10000, 100000]
+    gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
 
     best_score = sys.maxint
     best_params = None
