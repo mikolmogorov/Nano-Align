@@ -18,7 +18,7 @@ from nanoalign.blockade import BlockadeCluster
 
 
 def preprocess_blockades(blockades, cluster_size=10,
-                         min_dwell=0.05, max_dwell=20):
+                         min_dwell=0.5, max_dwell=20):
     """
     The main function for blockade preprocessing.
     Does all preparations and output blockade clusters.

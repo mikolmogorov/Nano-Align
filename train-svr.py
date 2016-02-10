@@ -11,13 +11,20 @@ Trains SVR model ans serializes it into a file
 from __future__ import print_function
 import sys
 import os
+import argparse
+
+import numpy as np
 
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
 from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.pvalues_test import pvalues_test
 
 
-def simple_train(mat_files, out_file):
+def train_svr(mat_files, out_file, C=1000, gamma=0.001, epsilon=0.01):
+    """
+    Trains SVR with the given parameters
+    """
     TRAIN_AVG = 1
 
     peptides = []
@@ -33,69 +40,82 @@ def simple_train(mat_files, out_file):
             signals.append(sp.discretize(cluster.consensus, len(mat_peptide)))
 
     svr_model = SvrBlockade()
-    svr_model.train(peptides, signals)
+    svr_model.train(peptides, signals, C, gamma, epsilon)
     svr_model.store_pickle(out_file)
 
 
-"""
-def cross_validate():
-    if len(sys.argv) != 5:
-        print("Usage: train-svm.py train_signals cv_signals db_file out_file")
-        return 1
+def cross_validate(train_mats, cv_mats, db_file, out_file):
+    """
+    Choosing the best parameters through cross-validation
+    """
+    CLUSTER_SIZE = 10
 
-    train_mats = sys.argv[1].split(",")
-    cv_mats = sys.argv[2].split(",")
-    db_file = sys.argv[3]
-
-    train_features, train_signals = _process_mats(train_mats)
-    #cv_features, cv_signals = _process_mats(cv_mats)
-
-    #eps_vec = [0.0001, 0.001, 0.01, 0.1]
-    eps_vec = [0.01, 0.001, 0.0001, 0.00001]
-    C_vec = [1, 10, 100, 1000, 10000, 100000]
-    gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
+    #eps_vec = [0.01, 0.001, 0.0001, 0.00001]
+    #C_vec = [1, 10, 100, 1000, 10000, 100000]
+    #gamma_vec = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1]
+    eps_vec = [0.01]
+    C_vec = [1000, 10000]
+    gamma_vec = [0.001, 0.01]
 
     best_score = sys.maxint
-    best_svr = None
     best_params = None
 
-    print("C\tGam\tEps\tScore")
+    print("C\tGam\tEps\tScore", file=sys.stderr)
     for C in C_vec:
         for gamma in gamma_vec:
             for eps in eps_vec:
-                svr = SVR(kernel="rbf", gamma=gamma, epsilon=eps, C=C)
-                svr.fit(train_features, train_signals)
-
                 temp_file = os.path.basename(train_mats[0] + "_temp.pcl")
-                _serialize_svr(svr, WINDOW, temp_file)
+                train_svr(train_mats, temp_file, C, gamma, eps)
+
                 scores = []
                 for cv_mat in cv_mats:
-                    #scores.append(benchmark.benchmark(cv_mat, temp_file, False))
-                    scores.append(identify.identify(cv_mat, db_file,
-                                                   temp_file, False))
-                os.remove(temp_file)
+                    pval, rank = pvalues_test(cv_mat, CLUSTER_SIZE, temp_file,
+                                              db_file, False,
+                                              open(os.devnull, "w"))
+                    scores.append(rank)
                 score = np.mean(scores)
 
-                print("{0}\t{1}\t{2}\t{3}".format(C, gamma, eps, score))
+                os.remove(temp_file)
+
+                print("{0}\t{1}\t{2}\t{3}".format(C, gamma, eps, score),
+                      file=sys.stderr)
                 if score < best_score:
                     best_score = score
-                    best_svr = svr
                     best_params = (C, gamma, eps)
 
-    print(*best_params)
-    _serialize_svr(best_svr, WINDOW, sys.argv[4])
-"""
+    print(*best_params, file=sys.stderr)
+    train_svr(train_mats, out_file, *best_params)
 
-#TODO: parser, cross-validation
+
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file",
-              file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser(description="Nano-Align SVR model "
+                                     "training", formatter_class= \
+                                     argparse.ArgumentDefaultsHelpFormatter)
 
-    mat_files = sys.argv[1:-1]
-    out_file = sys.argv[-1]
-    simple_train(mat_files, out_file)
+    parser.add_argument("train_blockades", metavar="train_blockades",
+                        help="comma-separated list of files with train "
+                        "blockades (in mat format)")
+    parser.add_argument("out_file", metavar="out_file",
+                        help="path to the output SVR file "
+                        "(in Python's pickle format)")
+    parser.add_argument("-c", "--cv-blockades", dest="cv_blockades",
+                        metavar="cv_blockades", help="comma-separated "
+                        "list with blockades files for cross-valiadtion. "
+                        "No CV, if not set", default=None)
+    parser.add_argument("-d", "--cv-database", dest="cv_database",
+                        metavar="database", help="database file (in FASTA "
+                        "format). If not set, random database is generated",
+                        default=None)
+
+    parser.add_argument("--version", action="version", version="0.1b")
+    args = parser.parse_args()
+
+    if args.cv_blockades is None:
+        train_svr(args.train_blockades.split(","), args.out_file)
+    else:
+        cross_validate(args.train_blockades.split(","),
+                       args.cv_blockades.split(","), args.cv_database,
+                       args.out_file)
     return 0
 
 
