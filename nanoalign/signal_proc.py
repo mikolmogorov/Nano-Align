@@ -59,8 +59,8 @@ def _filter_by_duration(blockades, min_time, max_time):
                              blockades))
     filtered_prc = (100 * float(len(blockades) - len(new_blockades)) /
                     len(blockades))
-    print("Filtered by duration: {0:5.2f}%".format(filtered_prc),
-          file=sys.stderr)
+    #print("Filtered by duration: {0:5.2f}%".format(filtered_prc),
+    #      file=sys.stderr)
     return new_blockades
 
 

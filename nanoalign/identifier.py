@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 from scipy.spatial import distance
-from scipy.stats import spearmanr
 
 import nanoalign.signal_proc as sp
 
@@ -37,6 +36,7 @@ class Identifier(object):
         Generates random database of given size
         with the same length and AA somposition as in the given peptide
         """
+        #AAS = "GASCUTDPNVBEQZHLIMKXRFYW"
         weights_list = list(protein)
         database = {}
         database["target"] = protein
@@ -90,32 +90,6 @@ class Identifier(object):
     """
 
     """
-    def compute_pvalue_raw(self, discr_signal, peptide):
-        weights_list = list(peptide)
-        misspred = 0
-        score = self.signal_peptide_score(discr_signal, peptide)
-        decoy_winner = None
-        #scores = []
-        for x in xrange(10000):
-            random.shuffle(weights_list)
-            #weights_list = [random.choice(AAS) for _ in xrange(len(peptide))]
-            decoy_weights = "".join(weights_list)
-            decoy_signal = self.peptide_signal(decoy_weights)
-            decoy_score = self.signal_peptide_score(discr_signal, decoy_weights)
-            #decoy_score = self.signal_peptide_score(decoy_signal, peptide)
-            #scores.append(decoy_score)
-            if decoy_score > score:
-                decoy_winner = decoy_signal
-                misspred += 1
-
-        p_value = float(misspred) / 10000
-        #print(np.median(scores), score)
-        #print(p_value)
-        #self.plot_raw_vs_theory(discr_signal, peptide, decoy_winner)
-        return p_value
-    """
-
-    """
     def plot_raw_vs_theory(self, discr_signal, peptide, decoy_winner):
         theor_signal = self.peptide_signal(peptide)
 
@@ -135,10 +109,7 @@ class Identifier(object):
 
 
 def _signals_distance(signal_1, signal_2):
-    #return distance.correlation(signal_1, signal_2)
-    #return -spearmanr(signal_1, signal_2)[0]
-    #return np.median(np.array(signal_1) - np.array(signal_2))
+    """
+    Computes distance between two discrete signals
+    """
     return distance.sqeuclidean(signal_1, signal_2)
-
-
-#AAS = "GASCUTDPNVBEQZHLIMKXRFYW"
