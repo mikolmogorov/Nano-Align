@@ -11,6 +11,9 @@ import numpy as np
 
 
 class Blockade(object):
+    """
+    The main data structure that stores all information about blockade
+    """
     def __init__(self, fileTag, StartPoint, ms_Dwell, pA_Blockade, openPore,
                  eventTrace, correlation, peptide):
         self.fileTag = fileTag

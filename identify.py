@@ -8,54 +8,81 @@ from Bio import SeqIO
 
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
-from nanopore.nanohmm import NanoHMM
-import nanopore.signal_proc as sp
-
-
-def rank_db_proteins(nano_hmm, signal, database):
-    max_score = -sys.maxint
-    scores = {}
-    discretized = {}
-
-    for prot_id, prot_seq in database.items():
-        num_peaks = len(prot_seq) + 3
-        if len(prot_seq) not in discretized:
-            d = sp.discretize(sp.trim_flank_noise(signal), num_peaks)
-            discretized[len(prot_seq)] = d
-
-        disc_signal = discretized[len(prot_seq)]
-        score = nano_hmm.signal_peptide_score(disc_signal, prot_seq)
-        scores[prot_id] = score
-
-    return sorted(scores.items(), key=lambda i: i[1], reverse=True)
+from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.identifier import Identifier
+from nanoalign.blockade import read_mat
+import nanoalign.signal_proc as sp
 
 
-def detalize_cluster(nano_hmm, cluster, database, winner, target_id):
-    norm_events = sp.get_averages(cluster.events, 1)
-    global_rankings = defaultdict(list)
-    for enum, event in enumerate(norm_events):
-        rankings = rank_db_proteins(nano_hmm, event.consensus, database)
-        for i in xrange(len(rankings)):
-            global_rankings[rankings[i][0]].append(i)
-            if rankings[i][0] == target_id:
-                target_rank = i
-            if rankings[i][0] == winner:
-                winner_rank = i
-        print("\tSignal {0}, target = {1}, winner = {2}".format(enum, target_rank,
-                                                                winner_rank))
-
-    for prot in global_rankings:
-        global_rankings[prot] = np.mean(global_rankings[prot])
-    global_rankings = sorted(global_rankings.items(), key=lambda i: i[1])
-
-    print("\tRanking")
-    for prot, rank in global_rankings[:10]:
-        print("\t\t{0}\t{1}".format(prot, rank))
-        #for prot, prot_score in rankings[:10]:
-        #    print("\t\t{0}\t{1}".format(prot, prot_score))
+#TODO: cluster detalization, full identify
 
 
+def make_database(db_file, peptide):
+    database = {}
+    target_id = None
+    for seq in SeqIO.parse(db_file, "fasta"):
+        database[seq.id] = str(seq.seq)
+        if database[seq.id] == peptide:
+            target_id = seq.id
+
+    return database, target_id
+
+
+def identification_test(blockades_file, cluster_size, svr_file, db_file=None):
+    """
+    Performs protein identification and report results
+    """
+    RANDOM_DB_SIZE = 10000
+    blockade_model = SvrBlockade()
+    blockade_model.load_from_pickle(svr_file)
+    identifier = Identifier(blockade_model)
+
+    blockades = read_mat(blockades_file)
+
+    true_peptide = blockades[0].peptide
+    if db_file is None:
+        identifier.random_database(true_peptide, RANDOM_DB_SIZE)
+        target_id = "target"
+        db_len = RANDOM_DB_SIZE
+    else:
+        database, target_id = make_database(db_file, true_peptide)
+        identifier.set_database(database)
+        db_len = len(database)
+
+    clusters = sp.preprocess_blockades(blockades, cluster_size=cluster_size,
+                                       min_dwell=0.5, max_dwell=20)
+
+    print("\nNo\tSize\tBest_id\t\tBest_dst\tTrg_dst\t\tTrg_rank\t"
+          "Trg_pval", file=sys.stderr)
+    p_values = []
+    ranks = []
+    for num, cluster in enumerate(clusters):
+        db_ranking = identifier.rank_db_proteins(cluster.consensus)
+
+        target_rank = None
+        target_dist = None
+        for rank, (prot_id, prot_dist) in enumerate(db_ranking):
+            if prot_id == target_id:
+                target_rank = rank
+                target_dist = prot_dist
+        p_value = float(target_rank) / db_len
+
+        p_values.append(p_value)
+        ranks.append(target_rank)
+
+        print("{0}\t{1}\t{2:10}\t{3:5.2f}\t\t{4:5.2f}\t\t{5}\t\t{6:6.4}"
+               .format(num + 1, len(cluster.blockades), db_ranking[0][0],
+                       db_ranking[0][1], target_dist, target_rank + 1, p_value),
+              file=sys.stderr)
+
+    print("\nMedian p-value: {0:7.4f}".format(np.median(p_values)),
+          file=sys.stderr)
+    print("Median target rank: {0:d}".format(int(np.median(ranks))),
+          file=sys.stderr)
+
+"""
 def identify(events_file, db_file, svr_file, write_output):
     events = sp.read_mat(events_file)
     events = sp.filter_by_time(events, 0.5, 20)
@@ -115,8 +142,36 @@ def identify(events_file, db_file, svr_file, write_output):
                     .format(100.0 * hist[target_id] / sum(hist.values())))
 
     return np.mean(target_ranks)
+"""
 
 
+"""
+def detalize_cluster(nano_hmm, cluster, database, winner, target_id):
+    norm_events = sp.get_averages(cluster.events, 1)
+    global_rankings = defaultdict(list)
+    for enum, event in enumerate(norm_events):
+        rankings = rank_db_proteins(nano_hmm, event.consensus, database)
+        for i in xrange(len(rankings)):
+            global_rankings[rankings[i][0]].append(i)
+            if rankings[i][0] == target_id:
+                target_rank = i
+            if rankings[i][0] == winner:
+                winner_rank = i
+        print("\tSignal {0}, target = {1}, winner = {2}".format(enum, target_rank,
+                                                                winner_rank))
+
+    for prot in global_rankings:
+        global_rankings[prot] = np.mean(global_rankings[prot])
+    global_rankings = sorted(global_rankings.items(), key=lambda i: i[1])
+
+    print("\tRanking")
+    for prot, rank in global_rankings[:10]:
+        print("\t\t{0}\t{1}".format(prot, rank))
+        #for prot, prot_score in rankings[:10]:
+        #    print("\t\t{0}\t{1}".format(prot, prot_score))
+"""
+
+"""
 def full_identify(mat_file, db_file, svr_file):
     events = sp.read_mat(mat_file)
     events = sp.filter_by_time(events, 0.5, 20)
@@ -138,8 +193,6 @@ def full_identify(mat_file, db_file, svr_file):
         for _ in xrange(avg):
             clusters = sp.get_averages(events, avg)
             for cluster in clusters:
-                discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                             num_peaks)
                 rankings = rank_db_proteins(nano_hmm, cluster.consensus, database)
                 target_rank = None
                 for i, prot in enumerate(rankings):
@@ -156,16 +209,30 @@ def full_identify(mat_file, db_file, svr_file):
 
     for b in boxes:
         print(",".join(map(str, b)))
+"""
 
 
 def main():
-    if len(sys.argv) != 4:
-        print("Usage: identify.py mat_file db_file svr_file")
-        return 1
+    parser = argparse.ArgumentParser(description="Nano-Align protein "
+                                     "identification", formatter_class= \
+                                     argparse.ArgumentDefaultsHelpFormatter)
 
-    #identify(sys.argv[1], sys.argv[2], sys.argv[3], True)
-    full_identify(sys.argv[1], sys.argv[2], sys.argv[3])
+    parser.add_argument("blockades_file", metavar="blockades_file",
+                        help="path to blockades file (in mat format)")
+    parser.add_argument("svr_file", metavar="svr_file",
+                        help="path to SVR file (in Python's pickle format)")
+    parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
+                        default=10, help="blockades cluster size")
+    parser.add_argument("-d", "--database", dest="database",
+                        metavar="database", help="database file (in FASTA format). "
+                        "If not set, random database is generated", default=None)
+    parser.add_argument("--version", action="version", version="0.1b")
+    args = parser.parse_args()
+
+    identification_test(args.blockades_file, args.cluster_size,
+                        args.svr_file, args.database)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

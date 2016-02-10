@@ -1,19 +1,27 @@
-from __future__ import print_function
+#(c) 2015-2016 by Authors
+#This file is a part of Nano-Align program.
+#Released under the BSD license (see LICENSE file)
 
+"""
+Some functions for blockade signal processing
+"""
+
+from __future__ import print_function
+import sys
 from collections import namedtuple, defaultdict
 import numpy as np
 import random
 from copy import deepcopy
 
 #from sklearn.cluster import AffinityPropagation
-
-from nanopore.blockade import BlockadeCluster
+from nanoalign.blockade import BlockadeCluster
 
 
 def preprocess_blockades(blockades, cluster_size=10,
                          min_dwell=0.05, max_dwell=20):
     """
-    Preprocesses blockades and outputs clusters
+    The main function for blockade preprocessing.
+    Does all preparations and output blockade clusters.
     """
     filtered = _filter_by_duration(blockades, min_dwell, max_dwell)
     frac_current = _fractional_blockades(filtered)
@@ -49,8 +57,10 @@ def _filter_by_duration(blockades, min_time, max_time):
     """
     new_blockades = list(filter(lambda e: min_time <= e.ms_Dwell <= max_time,
                              blockades))
-    print("Filtered {0:5.2f}%"
-            .format(100 * float(len(blockades) - len(new_blockades)) / len(blockades)))
+    filtered_prc = (100 * float(len(blockades) - len(new_blockades)) /
+                    len(blockades))
+    print("Filtered by duration: {0:5.2f}%".format(filtered_prc),
+          file=sys.stderr)
     return new_blockades
 
 
@@ -112,6 +122,9 @@ def _get_consensus(signals):
 
 
 def _normalize(signal):
+    """
+    Signal normalization
+    """
     return (signal - np.mean(signal)) / np.std(signal)
 
 

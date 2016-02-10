@@ -8,10 +8,6 @@ SVR model for theoretical signal generation
 
 from __future__ import print_function
 from string import maketrans
-from itertools import repeat, product
-from collections import namedtuple, defaultdict
-import math
-import random
 import os
 import pickle
 
@@ -53,12 +49,14 @@ class SvrBlockade(object):
         return self.svr_cache[feature_vec]
 
     def train(self, peptides, signals, C=1000, gamma=0.001, epsilon=0.01):
+        """
+        Trains SVR model
+        """
         self.svr = SVR(kernel="rbf", C=C, gamma=gamma, epsilon=epsilon)
         features = map(lambda p: self._peptide_to_features(p), peptides)
         train_features = np.array(sum(features, []))
         train_signals = np.array(sum(signals, []))
         assert len(train_features) == len(train_signals)
-
         self.svr.fit(train_features, train_signals)
 
     def peptide_signal(self, peptide):
@@ -69,12 +67,13 @@ class SvrBlockade(object):
 
         features = self._peptide_to_features(peptide)
         signal = np.array(map(lambda x: self._svr_predict(x), features))
+        #normalize the signal's amplitude
         signal = signal / np.std(signal)
         return signal
 
     def _peptide_to_features(self, peptide):
         """
-        Convert peptide into a list of feature vectors
+        Converts peptide into a list of feature vectors
         """
         aa_weights = _aa_to_weights(peptide)
         num_peaks = len(aa_weights) + self.window - 1

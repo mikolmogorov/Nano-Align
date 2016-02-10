@@ -5,31 +5,20 @@
 #Released under the BSD license (see LICENSE file)
 
 """
-Trains SVR model ans serializes it to file
+Trains SVR model ans serializes it into a file
 """
 
 from __future__ import print_function
 import sys
-from collections import defaultdict
-import random
-from string import maketrans
-from itertools import product
 import os
 
+import nanoalign.signal_proc as sp
+from nanoalign.blockade import read_mat
+from nanoalign.svr_blockade import SvrBlockade
 
-import nanopore.signal_proc as sp
-from nanopore.blockade import read_mat
-from nanopore.svr_blockade import SvrBlockade
 
-
-TRAIN_AVG = 1
-def simple_train():
-    if len(sys.argv) < 3:
-        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file")
-        return 1
-
-    mat_files = sys.argv[1:-1]
-    out_file = sys.argv[-1]
+def simple_train(mat_files, out_file):
+    TRAIN_AVG = 1
 
     peptides = []
     signals = []
@@ -97,11 +86,18 @@ def cross_validate():
     _serialize_svr(best_svr, WINDOW, sys.argv[4])
 """
 
-
+#TODO: parser, cross-validation
 def main():
-    #cross_validate()
-    simple_train()
+    if len(sys.argv) < 3:
+        print("Usage: train-svm.py train_mat_1[,train_mat_2...] out_file",
+              file=sys.stderr)
+        return 1
+
+    mat_files = sys.argv[1:-1]
+    out_file = sys.argv[-1]
+    simple_train(mat_files, out_file)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
