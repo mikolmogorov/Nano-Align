@@ -42,7 +42,6 @@ def pvalues_test(blockades_file, cluster_size, svr_file, db_file,
     identifier = Identifier(blockade_model)
 
     blockades = read_mat(blockades_file)
-
     true_peptide = blockades[0].peptide
     if db_file is None:
         identifier.random_database(true_peptide, RANDOM_DB_SIZE)
