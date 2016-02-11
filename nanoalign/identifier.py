@@ -89,24 +89,6 @@ class Identifier(object):
         return errors
     """
 
-    """
-    def plot_raw_vs_theory(self, discr_signal, peptide, decoy_winner):
-        theor_signal = self.peptide_signal(peptide)
-
-        print("Score:", _signal_score(discr_signal, theor_signal))
-        if decoy_winner is not None:
-            print("Decoy score:", _signal_score(discr_signal, decoy_winner))
-
-        plt.plot(np.repeat(discr_signal, 2), "b-", label="experimental")
-        plt.plot(np.repeat(theor_signal, 2), "r-", label="theory")
-        if decoy_winner is not None:
-            plt.plot(np.repeat(decoy_winner, 2), "g-", label="decoy")
-        plt.xlabel("Sampling points")
-        plt.ylabel("Normalized signal")
-        plt.legend(loc="upper right")
-        plt.show()
-    """
-
 
 def _signals_distance(signal_1, signal_2):
     """

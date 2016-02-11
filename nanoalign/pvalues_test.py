@@ -11,7 +11,6 @@ from collections import defaultdict
 from Bio import SeqIO
 import numpy as np
 
-from nanoalign.svr_blockade import SvrBlockade
 from nanoalign.identifier import Identifier
 from nanoalign.blockade import read_mat
 import nanoalign.signal_proc as sp
@@ -31,14 +30,12 @@ def _make_database(db_file, peptide):
     return database, target_id
 
 
-def pvalues_test(blockades_file, cluster_size, svr_file, db_file,
+def pvalues_test(blockades_file, cluster_size, blockade_model, db_file,
                  single_blockades, ostream):
     """
     Performs protein identification and report results
     """
     RANDOM_DB_SIZE = 10000
-    blockade_model = SvrBlockade()
-    blockade_model.load_from_pickle(svr_file)
     identifier = Identifier(blockade_model)
 
     blockades = read_mat(blockades_file)

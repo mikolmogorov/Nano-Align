@@ -21,17 +21,21 @@ import matplotlib.pyplot as plt
 nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, nanoalign_root)
 from nanoalign.pvalues_test import pvalues_test
+from nanoalign.svr_blockade import SvrBlockade
 
 
 def full_identify(blockades_file, svr_file, db_file):
     """
     Computes pvalues
     """
+    svr_model = SvrBlockade()
+    svr_model.load_from_pickle(svr_file)
+
     boxes = []
     for avg in xrange(1, 21):
         p_values = []
         for _ in xrange(avg):
-            p_value, rank = pvalues_test(blockades_file, avg, svr_file, db_file,
+            p_value, rank = pvalues_test(blockades_file, avg, svr_model, db_file,
                                          False, open(os.devnull, "w"))
             p_values.append(p_value)
 

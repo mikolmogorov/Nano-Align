@@ -12,6 +12,7 @@ import sys
 import argparse
 
 from nanoalign.pvalues_test import pvalues_test
+from nanoalign.svr_blockade import SvrBlockade
 
 
 def main():
@@ -36,7 +37,9 @@ def main():
     parser.add_argument("--version", action="version", version="0.1b")
     args = parser.parse_args()
 
-    pvalues_test(args.blockades_file, args.cluster_size, args.svr_file,
+    svr_model = SvrBlockade()
+    svr_model.load_from_pickle(args.svr_file)
+    pvalues_test(args.blockades_file, args.cluster_size, svr_model,
                  args.database, args.single_blockades, sys.stderr)
     return 0
 

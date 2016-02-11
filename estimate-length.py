@@ -8,7 +8,7 @@ import math
 from collections import defaultdict
 
 import numpy as np
-import nanopore.signal_proc as sp
+import nanoalign.signal_proc as sp
 import matplotlib.pyplot as plt
 import matplotlib
 import scipy.fftpack as fftpack

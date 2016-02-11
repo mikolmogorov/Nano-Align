@@ -18,9 +18,6 @@ from sklearn.svm import SVR
 class SvrBlockade(object):
     def __init__(self):
         self.window = 4
-        self.alphabet = "MSIL"
-        self.ext_alphabet = self.alphabet + "-"
-
         self.svr = None
         self.svr_cache = {}
 
@@ -29,14 +26,12 @@ class SvrBlockade(object):
         Loads serialized SVR
         """
         self.svr = pickle.load(open(filename, "rb"))
-        pass
 
     def store_pickle(self, filename):
         """
         Serizlize into file
         """
         assert self.svr is not None
-
         pickle.dump(self.svr, open(filename, "wb"))
 
     def _svr_predict(self, feature_vec):
