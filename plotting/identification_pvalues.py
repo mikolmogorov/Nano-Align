@@ -1,41 +1,104 @@
+#!/usr/bin/env python2.7
 
-def full_identify(mat_file, db_file, svr_file):
-    events = sp.read_mat(mat_file)
-    events = sp.filter_by_time(events, 0.5, 20)
-    sp.normalize(events)
-    peptide = events[0].peptide
-    num_peaks = len(peptide) + 3
-    nano_hmm = NanoHMM(len(peptide), svr_file)
+#(c) 2015-2016 by Authors
+#This file is a part of Nano-Align program.
+#Released under the BSD license (see LICENSE file)
 
-    database = {}
-    target_id = None
-    for seq in SeqIO.parse(db_file, "fasta"):
-        database[seq.id] = str(seq.seq)[:len(peptide)]
-        if database[seq.id] == peptide:
-            target_id = seq.id
+"""
+Plots identification p-values as a function of number blockades in
+consensus
+"""
 
+from __future__ import print_function
+import os
+import sys
+import argparse
+
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+
+nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, nanoalign_root)
+from nanoalign.pvalues_test import pvalues_test
+
+
+def full_identify(blockades_file, svr_file, db_file):
+    """
+    Computes pvalues
+    """
     boxes = []
     for avg in xrange(1, 21):
         p_values = []
         for _ in xrange(avg):
-            clusters = sp.get_averages(events, avg)
-            for cluster in clusters:
-                rankings = rank_db_proteins(nano_hmm, cluster.consensus, database)
-                target_rank = None
-                for i, prot in enumerate(rankings):
-                    if prot[0] == target_id:
-                        target_rank = i
-                        break
-
-                #p_value = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
-                p_value = float(target_rank) / len(database)
-                p_values.append(p_value)
+            p_value, rank = pvalues_test(blockades_file, avg, svr_file, db_file,
+                                         False, open(os.devnull, "w"))
+            p_values.append(p_value)
 
         boxes.append(p_values)
-        print(avg, np.median(p_values))
+        print(avg, np.median(p_values), file=sys.stderr)
 
-    for b in boxes:
-        print(",".join(map(str, b)))
-
+    plot_pvalues(boxes)
 
 
+def plot_pvalues(pvalues):
+    """
+    Draws the plot
+    """
+    matplotlib.rcParams.update({"font.size": 16})
+    matplotlib.rcParams["ytick.major.size"] = 10
+    matplotlib.rcParams["ytick.major.width"] = 2
+    matplotlib.rcParams["ytick.minor.size"] = 6
+    matplotlib.rcParams["ytick.minor.width"] = 1
+    matplotlib.rcParams["xtick.major.size"] = 10
+    matplotlib.rcParams["xtick.major.width"] = 2
+    matplotlib.rcParams["xtick.minor.size"] = 6
+    matplotlib.rcParams["xtick.minor.width"] = 1
+
+    fig = plt.subplot()
+
+    x_axis = range(1, len(pvalues) + 1)
+    pvalues_medians = map(np.median, pvalues)
+
+    fig.errorbar(x_axis, pvalues_medians, fmt="o-",
+                 label="p-values", linewidth=1.5)
+
+    for y in [0.1, 0.01, 0.001]:
+        plt.plot(x_axis, [y] * len(x_axis), "--",
+                 lw=0.5, color="black", alpha=0.3)
+
+    fig.spines["right"].set_visible(False)
+    fig.spines["top"].set_visible(False)
+    fig.get_xaxis().tick_bottom()
+    fig.get_yaxis().tick_left()
+    fig.set_ylim(0.001, 1)
+
+    fig.set_xlabel("Consensus size")
+    fig.set_ylabel("Median p-value")
+    fig.set_yscale("log", nonposy="clip")
+
+    plt.show()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Plots identification "
+                     "p-values as a function of the number of blockades "
+                     "in a cluster", formatter_class= \
+                     argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("blockades_file", metavar="blockades_file",
+                        help="input file with blockades (in mat format)")
+    parser.add_argument("svr_file", metavar="svr_file",
+                        help="path to the SVR file (in Python's pickle format)")
+    parser.add_argument("-d", "--database", dest="database",
+                        metavar="database", help="database file (in FASTA "
+                        "format). If not set, random database is generated",
+                        default=None)
+    args = parser.parse_args()
+    full_identify(args.blockades_file, args.svr_file, args.database)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
