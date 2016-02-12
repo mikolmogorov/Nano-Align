@@ -6,6 +6,9 @@
 Mean volume model for theoretical signal generation
 """
 
+import numpy as np
+
+
 class MvBlockade(object):
     def __init__(self):
         self.window = 4
@@ -32,7 +35,7 @@ class MvBlockade(object):
         signal = (signal - np.mean(signal)) / np.std(signal)
         return signal
 
-    def _signal(self.kmer):
+    def _signal(self, kmer):
         if not kmer in self.cache:
             volumes = np.array(map(self.volumes.get, kmer))
             unscaled = sum(volumes) / len(kmer)
