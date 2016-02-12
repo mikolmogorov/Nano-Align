@@ -13,6 +13,7 @@ import argparse
 
 from nanoalign.pvalues_test import pvalues_test
 from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.mv_blockade import MvBlockade
 
 
 def main():
@@ -39,6 +40,8 @@ def main():
 
     svr_model = SvrBlockade()
     svr_model.load_from_pickle(args.svr_file)
+    #Uncomment for using mv model instead of SVR
+    #mv_model = MvBlockade()
     pvalues_test(args.blockades_file, args.cluster_size, svr_model,
                  args.database, args.single_blockades, sys.stderr)
     return 0

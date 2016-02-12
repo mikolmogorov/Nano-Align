@@ -73,23 +73,6 @@ class Identifier(object):
         return sorted(distances.items(), key=lambda i: i[1])
 
 
-    """
-    def get_errors(self, peptide, exp_signal):
-        theor_signal = self.peptide_signal(peptide)
-        flanked_peptide = ("-" * (self.window - 1) + peptide +
-                           "-" * (self.window - 1))
-        num_peaks = len(peptide) + self.window - 1
-
-        errors = []
-        for i in xrange(0, num_peaks):
-            kmer = flanked_peptide[i : i + self.window]
-            if "-" not in kmer:
-                for aa in kmer:
-                    errors.append((aa, exp_signal[i] - theor_signal[i]))
-        return errors
-    """
-
-
 def _signals_distance(signal_1, signal_2):
     """
     Computes distance between two discrete signals

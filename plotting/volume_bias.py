@@ -1,39 +1,71 @@
+#!/usr/bin/env python2.7
 
-def benchmark(mat_file, svr_file, write_output):
-    events = sp.read_mat(mat_file)
-    events = sp.filter_by_time(events, 0.5, 20)
-    sp.normalize(events)
-    clusters = sp.get_averages(events, 10)
-    #clusters = sp.cluster_events(events)
+#(c) 2015-2016 by Authors
+#This file is a part of Nano-Align program.
+#Released under the BSD license (see LICENSE file)
 
-    peptide = clusters[0].events[0].peptide
-    nano_hmm = NanoHMM(len(peptide), svr_file)
+"""
+Measure volume- and hydro-related bias
+for SVR and MV models
+"""
 
-    p_values = []
+from __future__ import print_function
+import sys
+import os
+import argparse
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+
+nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, nanoalign_root)
+import nanoalign.signal_proc as sp
+from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.mv_blockade import MvBlockade
+from nanoalign.blockade import read_mat
+
+
+def get_bias(blockades_file, svr_file, cluster_size):
+    """
+    Gets AA-specific bias between the empirical and theoretical signals
+    """
+    WINDOW = 4
+
+    blockades = read_mat(blockades_file)
+    clusters = sp.preprocess_blockades(blockades, cluster_size=cluster_size,
+                                       min_dwell=0.5, max_dwell=20)
+    peptide = clusters[0].blockades[0].peptide
+
+    if svr_file is not None:
+        blockade_model = SvrBlockade()
+        blockade_model.load_from_pickle(svr_file)
+    else:
+        blockade_model = MvBlockade()
+
     errors = defaultdict(list)
-
+    model_signal = blockade_model.peptide_signal(peptide)
     for cluster in clusters:
-        num_peaks = len(peptide) + 3
-        discr_signal = sp.discretize(sp.trim_flank_noise(cluster.consensus),
-                                     num_peaks)
+        discr_signal = sp.discretize(cluster.consensus, len(peptide))
 
-        for aa, e in nano_hmm.get_errors(peptide, discr_signal):
-            errors[aa].append(e)
+        flanked_peptide = ("-" * (WINDOW - 1) + peptide +
+                           "-" * (WINDOW - 1))
+        num_peaks = len(peptide) + WINDOW - 1
 
-        p_value_raw = nano_hmm.compute_pvalue_raw(discr_signal, peptide)
-        p_values.append(p_value_raw)
-        if write_output:
-            print(len(cluster.events), p_value_raw)
+        for i in xrange(0, num_peaks):
+            kmer = flanked_peptide[i : i + WINDOW]
+            if "-" not in kmer:
+                for aa in kmer:
+                    errors[aa].append(discr_signal[i] - model_signal[i])
 
-    fancy_plot(errors)
-
-    if write_output:
-        print("Mean: ", np.mean(p_values))
-        print("Median: ", np.median(p_values))
-    return np.median(p_values)
+    return errors
 
 
-def fancy_plot(errors):
+def fancy_plot(errors, plot_type):
+    """
+    Draws the plot
+    """
     VOLUMES = {"I": 169, "F": 203, "V": 142, "L": 168,
                "W": 238, "M": 171, "A": 92, "G": 66,
                "C": 106, "Y": 204, "P": 129, "T": 122,
@@ -45,7 +77,10 @@ def fancy_plot(errors):
                "S": -7, "H": -42, "E": 8, "N": -41,
                "Q": -18, "D": -18, "K": -37, "R": -26}
 
-    sorted_aa = sorted(errors.keys(), key=HYDRO.get)
+    if plot_type == "volume":
+        sorted_aa = sorted(errors.keys(), key=VOLUMES.get)
+    else:
+        sorted_aa = sorted(errors.keys(), key=HYDRO.get)
     sorted_values = map(errors.get, sorted_aa)
 
     x_axis = range(1, len(sorted_aa) + 1)
@@ -79,6 +114,35 @@ def fancy_plot(errors):
 
     fig.plot(x_axis, poly_fun(x_axis), "r-", linewidth=1.5)
 
-    fig.set_xlabel("Amino acids (sorted by hydrophillicity)")
+    if plot_type == "volume":
+        fig.set_xlabel("Amino acids (sorted by volume)")
+    else:
+        fig.set_xlabel("Amino acids (sorted by hydrophillicity)")
     fig.set_ylabel("Signed error")
     plt.show()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Compute volume- and"
+                                     "hydro-related bias", formatter_class= \
+                                     argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("blockades_file", metavar="blockades_file",
+                        help="path to blockades file (in mat format)")
+    parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
+                        default=10, help="blockades cluster size")
+    parser.add_argument("-s", "--svr", dest="svr_file",
+                        metavar="svr_file", help="A path to SVR model file. "
+                        "If not set, MV model will be used", default=None)
+    parser.add_argument("--hydro", action="store_true",
+                        default=False, dest="hydro",
+                        help="Order AA by hydrophilicity instead of volume")
+    args = parser.parse_args()
+
+    errors = get_bias(args.blockades_file, args.svr_file, args.cluster_size)
+    mode = "volume" if not args.hydro else "hydro"
+    fancy_plot(errors, mode)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
