@@ -13,7 +13,6 @@ import numpy as np
 import random
 from copy import deepcopy
 
-#from sklearn.cluster import AffinityPropagation
 from nanoalign.blockade import BlockadeCluster
 
 
@@ -169,28 +168,3 @@ def _random_cluster(blockades, bin_size):
         averages.append(BlockadeCluster(avg_signal, cl_blockades))
 
     return averages
-
-
-"""
-def cluster_events(events):
-    NUM_FEATURES = 100
-    feature_mat = []
-    for event in events:
-        features = discretize(event.eventTrace, NUM_FEATURES)
-        feature_mat.append(features)
-
-    feature_mat = np.array(feature_mat)
-
-    labels = AffinityPropagation(damping=0.5).fit_predict(feature_mat)
-    #labels = KMeans(n_clusters=3).fit_predict(feature_mat)
-
-    by_cluster = defaultdict(list)
-    for event, clust_id in enumerate(labels):
-        by_cluster[clust_id].append(events[event])
-
-    clusters = []
-    for cl_events in by_cluster.values():
-        clusters.append(EventCluster(get_consensus(cl_events),
-                                     cl_events))
-    return clusters
-"""

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 #(c) 2015-2016 by Authors
 #This file is a part of Nano-Align program.
