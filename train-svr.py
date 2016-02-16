@@ -100,8 +100,9 @@ def main():
                         "list with blockades files for cross-valiadtion. "
                         "No CV, if not set", default=None)
     parser.add_argument("-d", "--cv-database", dest="cv_database",
-                        metavar="database", help="database file (in FASTA "
-                        "format). If not set, random database is generated",
+                        metavar="cv_database", help="database file for CV "
+                        "(in FASTA format). If not set, random database "
+                        "is generated",
                         default=None)
 
     parser.add_argument("--version", action="version", version="0.1b")
