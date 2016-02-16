@@ -51,6 +51,33 @@ def discretize(signal, protein_length):
     return discrete
 
 
+def find_peaks(signal, minimum=False, ranged=False):
+    """
+    Finds local maximums/minimums
+    """
+    signal = np.array(signal)
+    WINDOW = 10
+
+    peaks = []
+    for pos in xrange(WINDOW, len(signal) - WINDOW):
+        left = signal[pos - WINDOW: pos] - signal[pos]
+        right = signal[pos + 1: pos + WINDOW + 1] - signal[pos]
+
+        if not minimum:
+            if (left < 0).all() and (right < 0).all():
+                peaks.append((pos, abs(np.mean(left) + np.mean(right))))
+        else:
+            if (left > 0).all() and (right > 0).all():
+                peaks.append((pos, signal[pos]))
+
+    selected = sorted(peaks, key=lambda p: p[1], reverse=not minimum)
+    xx = map(lambda p: p[0], selected)
+    if not ranged:
+        xx.sort()
+    yy = map(lambda p: signal[p], xx)
+    return xx, yy
+
+
 def _filter_by_duration(blockades, min_time, max_time):
     """
     Filters blockades by dwell duration

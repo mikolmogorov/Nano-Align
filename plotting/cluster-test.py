@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 
+#(c) 2015-2016 by Authors
+#This file is a part of Nano-Align program.
+#Released under the BSD license (see LICENSE file)
+
+"""
+Clustering testing
+"""
+
 from __future__ import print_function
 import sys
 from collections import defaultdict

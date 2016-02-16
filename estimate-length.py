@@ -18,38 +18,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import scipy.fftpack as fftpack
-from scipy.stats import linregress, gaussian_kde
 from scipy import signal
 
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
-
-
-def find_peaks(signal, minimum=False, ranged=False):
-    """
-    Finds local maximums/minimums
-    """
-    signal = np.array(signal)
-    WINDOW = 10
-
-    peaks = []
-    for pos in xrange(WINDOW, len(signal) - WINDOW):
-        left = signal[pos - WINDOW: pos] - signal[pos]
-        right = signal[pos + 1: pos + WINDOW + 1] - signal[pos]
-
-        if not minimum:
-            if (left < 0).all() and (right < 0).all():
-                peaks.append((pos, abs(np.mean(left) + np.mean(right))))
-        else:
-            if (left > 0).all() and (right > 0).all():
-                peaks.append((pos, signal[pos]))
-
-    selected = sorted(peaks, key=lambda p: p[1], reverse=not minimum)
-    xx = map(lambda p: p[0], selected)
-    if not ranged:
-        xx.sort()
-    yy = map(lambda p: signal[p], xx)
-    return xx, yy
 
 
 def savitsky_golay(y, window_size, order, deriv=0, rate=1):
@@ -89,7 +61,7 @@ def gcd_fuzz(numbers):
 
         vals.append(np.mean(rems) / div)
 
-    gcd_x, gcd_y = find_peaks(vals, minimum=True, ranged=True)
+    gcd_x, gcd_y = sp.find_peaks(vals, minimum=True, ranged=True)
     gcds = filter(lambda x: 40 < x < 500, gcd_x)
 
     return vals, gcds
@@ -109,7 +81,7 @@ def frequency_distribution(blockades_file, detailed):
             detailed_plots(blockade)
 
         signal = blockade.eventTrace[1000:-1000]
-        xx, yy = find_peaks(signal)
+        xx, yy = sp.find_peaks(signal)
         peaks_count[blockade] = len(xx) / blockade.ms_Dwell * 5 / 4
 
     mean = np.mean(peaks_count.values())
@@ -130,7 +102,7 @@ def detailed_plots(blockade):
     fft = fftpack.rfft(blockade.eventTrace)
 
     #Getting mean distance between peaks
-    xx, yy = find_peaks(blockade.eventTrace)
+    xx, yy = sp.find_peaks(blockade.eventTrace)
     diff_1 = sorted(np.array(xx)[1:] - np.array(xx)[:-1])
     diff_2 = sorted(np.array(xx)[2:] - np.array(xx)[:-2])
     diff_3 = sorted(np.array(xx)[3:] - np.array(xx)[:-3])
@@ -143,7 +115,7 @@ def detailed_plots(blockade):
     smooth_diff = savitsky_golay(smooth_diff, 5, 3)
 
     #Guessing gcds of peak distance distributino
-    hist_x, hist_y = find_peaks(smooth_diff)
+    hist_x, hist_y = sp.find_peaks(smooth_diff)
     char_peaks = map(lambda x: int(bin_edges[x + 1]), hist_x)
     gcd_plot, gcds = gcd_fuzz(char_peaks)
 
