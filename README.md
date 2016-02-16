@@ -39,20 +39,20 @@ two original ".mat" files with recorded blockades
 (for example, "H32.mat" and "H4.mat"), the commands order
 will be as follows:
 
-1. Add protein sequences to .mat files:
+Add protein sequences to .mat files:
 
     scripts/protein-label.py H32.mat "ARTKQTARK...(H32 sequence)"
     scripts/protein-label.py H4.mat "MSGRGKGGK...(H4 sequence)"
 
-2. Train SVR model:
+Train SVR model:
 
     train-svr.py H32.mat svr_H32.pcl
 
-3. Normalize blockades directions:
+Normalize blockades directions:
 
     scripts/flip-blockades.py H4.mat svr_H32.pcl H4_flipped.mat
 
-4. Perform identification:
+Perform identification:
 
     identify.py H4_flipped.mat svr_H32.pcl
 
