@@ -87,7 +87,7 @@ Data Preparation
 ----------------
 
 The scripts located in "scripts" directory provide some extra
-functionality for the blockades analysis.
+functionality for the data preprocessing and analysis.
 
 ### cut-protein-db.py
 
@@ -142,7 +142,8 @@ could be used for the reproduction of the results. The exact commands that
 were used to get the reults are given in "Quick Example" section.
 The plotting scripts are located in "plotting" directory.
 
-"H32" dataset corresponds to *ZD350_H32_D5.mat* file, "H4" is a union of
-three files: *ZD349_H4_D3.mat*, *ZD349_H4_D4.mat* and *ZD349_H4_D5.mat* files.
-"CCL5" corrsponds to *ZD158_CCL5.mat*, "H3" corresponds to *ZD243_H3N.mat*
-and "H33" corresponds to *ZD350_H33_D2.mat*.
+* "H3.2" -- *ZD350_H32_D5.mat*
+* "H4" -- a union of *ZD349_H4_D3.mat*, *ZD349_H4_D4.mat* and *ZD349_H4_D5.mat*
+* "CCL5" -- *ZD158_CCL5.mat*
+* "H3" -- *ZD243_H3N.mat* 
+* "H3.3" -- *ZD350_H33_D2.mat*
