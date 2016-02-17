@@ -31,8 +31,8 @@ using the provided scripts. See the detailed instructions in "Data preparation"
 section.
 
 
-Qick Example
-------------
+Quick Example
+-------------
 
 This is a quick example of Nano-Align pipeline. Given
 two original ".mat" files with recorded blockades 
@@ -86,14 +86,63 @@ associated with the protein length (and possibly, some other features).
 Data Preparation
 ----------------
 
-Use scripts from "scripts".
+The scripts located in "scripts" directory provide some extra
+functionality for the blockades analysis.
+
+### cut-protein-db.py
+
+Creates a protein database with the certain protein lengths from
+a bigger FASTA database (such as human proteome).
+
+### flip-blockades.py
+
+Given blockades singals and trained SVR model, for each blockade
+determines if was recorded from straight (N- to C-terminus) or
+reverse protein translocation. Reverse translocations are then flipped.
+
+### merge-mats.py
+
+Merges multiple .mat files into one.
+
+### protein-label.py
+
+Adds protein sequence labels to .mat file - a prerequisite for
+the further analysis.
 
 
 Plotting Scripts
 ----------------
 
-Describe them
+Scripts from "plotting" directory could be used for drawing plots
+(similar to ones from the manuscript).
+
+### blockades-freq.py
+
+Plots blocakdes frequencies for different dataset to highlight the difference.
+
+### identification-pvalues.py
+
+Plots p-values of protein identification for the different cluster sizes.
+
+### models-fit.py
+
+Plots emperical blockades versus theoretical models for the visual comparison.
+
+### volume-bias.py
+
+Plots volume-related or hydrophillicity-related bias based on the
+difference between empirical and theoretical traces.
 
 
 Datasets from the Manuscript
 ----------------------------
+
+Here we describe the exact datasets used in the manuscript, which
+could be used for the reproduction of the results. The exact commands that
+were used to get the reults are given in "Quick Example" section.
+The plotting scripts are located in "plotting" directory.
+
+"H32" dataset corresponds to *ZD350_H32_D5.mat* file, "H4" is a union of
+three files: *ZD349_H4_D3.mat*, *ZD349_H4_D4.mat* and *ZD349_H4_D5.mat* files.
+"CCL5" corrsponds to *ZD158_CCL5.mat*, "H3" corresponds to *ZD243_H3N.mat*
+and "H33" corresponds to *ZD350_H33_D2.mat*.
