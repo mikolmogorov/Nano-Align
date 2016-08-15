@@ -14,6 +14,7 @@ import sys
 import os
 import argparse
 
+from statsmodels.nonparametric.smoothers_lowess import lowess
 from scipy.interpolate import interp1d
 from scipy.spatial import distance
 import matplotlib.pyplot as plt
@@ -26,6 +27,10 @@ import nanoalign.signal_proc as sp
 from nanoalign.svr_blockade import SvrBlockade
 from nanoalign.mv_blockade import MvBlockade
 from nanoalign.blockade import read_mat
+
+
+import pyximport; pyximport.install()
+from nanoalign.timewrap import edr_distance
 
 
 def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
@@ -45,17 +50,16 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
     mv_signal = MvBlockade().peptide_signal(peptide)
 
     for cluster in clusters:
+        cluster.consensus = sp.resample(cluster.consensus, 1000)
+
         signal_length = len(cluster.consensus)
-        model_grid = [i * signal_length / (len(mv_signal) - 1)
-                      for i in xrange(len(mv_signal))]
+        mv_interp = sp.resample(mv_signal, len(cluster.consensus))
+        svr_interp = sp.resample(svr_signal, len(cluster.consensus))
+        smooth_cons = lowess(cluster.consensus, range(len(cluster.consensus)),
+                             return_sorted=False, frac=2.0 / len(peptide))
 
-        interp_fun = interp1d(model_grid, mv_signal, kind="cubic")
-        mv_interp = interp_fun(xrange(signal_length))
-        interp_fun = interp1d(model_grid, svr_signal, kind="cubic")
-        svr_interp = interp_fun(xrange(signal_length))
-
-        svr_corr = 1 - distance.correlation(cluster.consensus, svr_interp)
-        mv_corr = 1 - distance.correlation(cluster.consensus, mv_interp)
+        svr_corr = edr_distance(cluster.consensus, svr_interp)
+        mv_corr = edr_distance(smooth_cons, svr_interp)
         print("SVR correlation: {0:5.2f}\tMV correlation: {1:5.2f}"
                 .format(svr_corr, mv_corr), file=sys.stderr)
 
@@ -65,8 +69,10 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
         matplotlib.rcParams.update({"font.size": 16})
         fig = plt.subplot()
         fig.plot(x_axis, cluster.consensus, label="Empirical signal", linewidth=1.5)
-        fig.plot(x_axis, mv_interp, label="MV model", linewidth=1.5)
+        #fig.plot(x_axis, smooth_cons, label="Smooth signal", linewidth=1.5)
+        #fig.plot(x_axis, mv_interp, label="MV model", linewidth=1.5)
         fig.plot(x_axis, svr_interp, label="SVR model", linewidth=1.5)
+        #fig.plot(x_axis, svr_interp[::-1], label="Rev SVR model", linewidth=1.5)
 
         fig.spines["right"].set_visible(False)
         fig.spines["top"].set_visible(False)

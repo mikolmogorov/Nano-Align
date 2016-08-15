@@ -12,8 +12,15 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 from scipy.spatial import distance
+from scipy.interpolate import interp1d
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 import nanoalign.signal_proc as sp
+
+
+import pyximport; pyximport.install()
+from nanoalign.timewrap import edr_distance
+
 
 class Identifier(object):
     def __init__(self, blockade_model):
@@ -22,7 +29,7 @@ class Identifier(object):
 
     def signal_protein_distance(self, signal, peptide):
         theor_signal = self.blockade_model.peptide_signal(peptide)
-        return _signals_distance(signal, theor_signal)
+        return _signals_distance(signal, sp.resample(theor_signal, 2000))
 
     def set_database(self, database):
         """
@@ -62,12 +69,16 @@ class Identifier(object):
         distances = {}
         discretized = {}
 
+        smooth_signal = lowess(signal, range(len(signal)),
+                               return_sorted=False,
+                               frac=2.0 / len(self.database["target"]))
+        resampled = sp.resample(smooth_signal, 2000)
+
         for prot_id, prot_seq in self.database.items():
             if len(prot_seq) not in discretized:
                 discretized[len(prot_seq)] = sp.discretize(signal, len(prot_seq))
 
-            distance = self.signal_protein_distance(discretized[len(prot_seq)],
-                                                    prot_seq)
+            distance = self.signal_protein_distance(resampled, prot_seq)
             distances[prot_id] = distance
 
         return sorted(distances.items(), key=lambda i: i[1])
@@ -77,4 +88,14 @@ def _signals_distance(signal_1, signal_2):
     """
     Computes distance between two discrete signals
     """
-    return distance.sqeuclidean(signal_1, signal_2)
+    #return distance.sqeuclidean(signal_1, signal_2)
+    #diff = abs(signal_1 - signal_2)
+    #digit = np.digitize(diff, [0, 1]) - 1
+    #dd = np.sum(digit)
+    #return dd
+
+    d = edr_distance(signal_1, signal_2)
+    #print(d, distance.sqeuclidean(signal_1, signal_2))
+    return d
+    #return np.sum(digit)
+    #return distance.correlation(signal_1, signal_2)

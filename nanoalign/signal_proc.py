@@ -9,6 +9,7 @@ Some functions for blockade signal processing
 from __future__ import print_function
 import sys
 from collections import namedtuple, defaultdict
+from scipy.interpolate import interp1d
 import numpy as np
 import random
 from copy import deepcopy
@@ -29,6 +30,22 @@ def preprocess_blockades(blockades, cluster_size=10,
         cl.consensus = _normalize(_trim_flank_noise(cl.consensus))
 
     return clusters
+
+
+def resample(signal, new_length):
+    grid = [i * new_length / (len(signal) - 1)
+            for i in xrange(len(signal))]
+
+    if new_length > len(signal):
+        interp = interp1d(grid, signal, kind="linear")
+        return interp(xrange(new_length))
+    else:
+        new_signal = [0 for _ in xrange(new_length)]
+        for i in xrange(new_length):
+            left = i * len(signal) / new_length
+            right = (i + 1) * len(signal) / new_length
+            new_signal[i] = np.mean(signal[left : right])
+        return new_signal
 
 
 def discretize(signal, protein_length):
@@ -134,6 +151,7 @@ def _fractional_blockades(blockades):
             blockade.eventTrace = 1 - blockade.eventTrace / blockade.openPore
         else:
             blockade.eventTrace = -blockade.eventTrace / blockade.openPore
+        blockade.eventTrace = _normalize(blockade.eventTrace)
 
     return blockades
 
@@ -151,7 +169,8 @@ def _normalize(signal):
     """
     Signal normalization
     """
-    return (signal - np.mean(signal)) / np.std(signal)
+    return (signal - np.mean(signal)) / (np.std(signal))
+    #return (signal - min(signal)) / (max(signal) - min(signal))
 
 
 def _random_cluster(blockades, bin_size):
