@@ -79,7 +79,7 @@ for the detailed parameter description.
 
 ### estimate-length.py
 
-This script measures identifies blockade frequencies, which are
+This script measures blockade frequencies, which are
 associated with the protein length (and possibly, some other features).
 
 
