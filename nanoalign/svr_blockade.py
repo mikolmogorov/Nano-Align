@@ -53,6 +53,7 @@ class SvrBlockade(object):
         train_signals = np.array(sum(signals, []))
         assert len(train_features) == len(train_signals)
         self.svr.fit(train_features, train_signals)
+        print(self.svr.score(train_features, train_signals))
 
     def peptide_signal(self, peptide):
         """

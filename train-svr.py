@@ -18,6 +18,7 @@ import numpy as np
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
 from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.random_forest import RandomForestBlockade
 from nanoalign.pvalues_test import pvalues_test
 
 
@@ -39,9 +40,11 @@ def train_svr(mat_files, out_file, C=1000, gamma=0.001, epsilon=0.01):
         for cluster in clusters:
             signals.append(sp.discretize(cluster.consensus, len(mat_peptide)))
 
-    svr_model = SvrBlockade()
-    svr_model.train(peptides, signals, C, gamma, epsilon)
-    svr_model.store_pickle(out_file)
+    #model = SvrBlockade()
+    #model.train(peptides, signals, C, gamma, epsilon)
+    model = RandomForestBlockade()
+    model.train(peptides, signals)
+    model.store_pickle(out_file)
 
 
 def cross_validate(train_mats, cv_mats, db_file, out_file):

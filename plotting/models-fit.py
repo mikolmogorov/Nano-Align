@@ -25,6 +25,7 @@ sys.path.insert(0, nanoalign_root)
 import nanoalign.signal_proc as sp
 from nanoalign.svr_blockade import SvrBlockade
 from nanoalign.mv_blockade import MvBlockade
+from nanoalign.random_forest import RandomForestBlockade
 from nanoalign.blockade import read_mat
 
 
@@ -39,7 +40,7 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
                                        min_dwell=0.5, max_dwell=20)
     peptide = clusters[0].blockades[0].peptide
 
-    svr_model = SvrBlockade()
+    svr_model = RandomForestBlockade()
     svr_model.load_from_pickle(svr_file)
     svr_signal = svr_model.peptide_signal(peptide)
     mv_signal = MvBlockade().peptide_signal(peptide)

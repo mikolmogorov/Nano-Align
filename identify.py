@@ -13,6 +13,7 @@ import argparse
 
 from nanoalign.pvalues_test import pvalues_test
 from nanoalign.svr_blockade import SvrBlockade
+from nanoalign.random_forest import RandomForestBlockade
 from nanoalign.mv_blockade import MvBlockade
 
 
@@ -38,7 +39,7 @@ def main():
     parser.add_argument("--version", action="version", version="0.1b")
     args = parser.parse_args()
 
-    svr_model = SvrBlockade()
+    svr_model = RandomForestBlockade()
     svr_model.load_from_pickle(args.svr_file)
     #Uncomment for using mv model instead of SVR
     #mv_model = MvBlockade()
