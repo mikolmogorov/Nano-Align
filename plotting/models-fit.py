@@ -22,14 +22,14 @@ import numpy as np
 
 nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, nanoalign_root)
+
 import nanoalign.signal_proc as sp
-from nanoalign.svr_blockade import SvrBlockade
-from nanoalign.mv_blockade import MvBlockade
-from nanoalign.random_forest import RandomForestBlockade
+from nanoalign.mean_volume import MvBlockade
 from nanoalign.blockade import read_mat
+from nanoalign.model_loader import load_model
 
 
-def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
+def plot_blockades(blockades_file, model_file, cluster_size, show_text):
     """
     Pretty plotting
     """
@@ -40,9 +40,8 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
                                        min_dwell=0.5, max_dwell=20)
     peptide = clusters[0].blockades[0].peptide
 
-    svr_model = RandomForestBlockade()
-    svr_model.load_from_pickle(svr_file)
-    svr_signal = svr_model.peptide_signal(peptide)
+    model = load_model(model_file)
+    svr_signal = model.peptide_signal(peptide)
     mv_signal = MvBlockade().peptide_signal(peptide)
 
     for cluster in clusters:
@@ -68,7 +67,7 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
         fig = plt.subplot()
         fig.plot(x_axis, cluster.consensus, label="Empirical signal", linewidth=1.5)
         fig.plot(x_axis, mv_interp, label="MV model", linewidth=1.5)
-        fig.plot(x_axis, svr_interp, label="SVR model", linewidth=1.5)
+        fig.plot(x_axis, svr_interp, label=model.name, linewidth=1.5)
 
         fig.spines["right"].set_visible(False)
         fig.spines["top"].set_visible(False)
@@ -114,8 +113,9 @@ def main():
                                 argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("blockades_file", metavar="blockades_file",
                         help="path to blockades file (in mat format)")
-    parser.add_argument("svr_file", metavar="svr_file",
-                        help="path to SVR file (in Python's pickle format)")
+    parser.add_argument("model_file", metavar="model_file",
+                        help="path to a file with trained model "
+                             "(in Python's pickle format)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
                         default=10, help="blockades cluster size")
     parser.add_argument("-t", "--aa-text", action="store_true",
@@ -123,7 +123,7 @@ def main():
                         help="show AAs")
     args = parser.parse_args()
 
-    plot_blockades(args.blockades_file, args.svr_file,
+    plot_blockades(args.blockades_file, args.model_file,
                    args.cluster_size, args.aa_text)
     #self_compare(clusters, SMOOTH)
     return 0

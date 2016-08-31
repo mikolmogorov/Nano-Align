@@ -8,31 +8,18 @@ SVR model for theoretical signal generation
 
 from __future__ import print_function
 from string import maketrans
-import os
-import pickle
 
 import numpy as np
 from sklearn.svm import SVR
 
+from nanoalign.blockade_modlel import BlockadeModel
 
-class SvrBlockade(object):
+
+class SvrBlockade(BlockadeModel):
     def __init__(self):
-        self.window = 4
-        self.svr = None
+        super(SvrBlockade, self).__init__()
+        self.name = "SVR"
         self.svr_cache = {}
-
-    def load_from_pickle(self, filename):
-        """
-        Loads serialized SVR
-        """
-        self.svr = pickle.load(open(filename, "rb"))
-
-    def store_pickle(self, filename):
-        """
-        Serizlize into file
-        """
-        assert self.svr is not None
-        pickle.dump(self.svr, open(filename, "wb"))
 
     def _svr_predict(self, feature_vec):
         """
@@ -40,26 +27,27 @@ class SvrBlockade(object):
         """
         if feature_vec not in self.svr_cache:
             np_feature = np.array(feature_vec).reshape(1, -1)
-            self.svr_cache[feature_vec] = self.svr.predict(np_feature)[0]
+            self.svr_cache[feature_vec] = self.predictor.predict(np_feature)[0]
         return self.svr_cache[feature_vec]
 
     def train(self, peptides, signals, C=1000, gamma=0.001, epsilon=0.01):
         """
         Trains SVR model
         """
-        self.svr = SVR(kernel="rbf", C=C, gamma=gamma, epsilon=epsilon)
+        self.predictor = SVR(kernel="rbf", C=C, gamma=gamma, epsilon=epsilon)
         features = map(lambda p: self._peptide_to_features(p), peptides)
         train_features = np.array(sum(features, []))
         train_signals = np.array(sum(signals, []))
         assert len(train_features) == len(train_signals)
-        self.svr.fit(train_features, train_signals)
-        print(self.svr.score(train_features, train_signals))
+
+        self.predictor.fit(train_features, train_signals)
+        print(self.predictor.score(train_features, train_signals))
 
     def peptide_signal(self, peptide):
         """
         Generates theoretical signal for a given peptide
         """
-        assert self.svr is not None
+        assert self.predictor is not None
 
         features = self._peptide_to_features(peptide)
         signal = np.array(map(lambda x: self._svr_predict(x), features))

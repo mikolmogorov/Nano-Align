@@ -8,17 +8,14 @@ Mean volume model for theoretical signal generation
 
 import numpy as np
 
+from nanoalign.blockade_modlel import BlockadeModel
 
-class MvBlockade(object):
+
+class MvBlockade(BlockadeModel):
     def __init__(self):
-        self.window = 4
+        super(MvBlockade, self).__init__()
+        self.name = "MeanVolume"
         self.cache = {}
-        self.volumes = {"I": 0.1688, "F": 0.2034, "V": 0.1417, "L": 0.1679,
-                        "W": 0.2376, "M": 0.1708, "A": 0.0915, "G": 0.0664,
-                        "C": 0.1056, "Y": 0.2036, "P": 0.1293, "T": 0.1221,
-                        "S": 0.0991, "H": 0.1673, "E": 0.1551, "N": 0.1352,
-                        "Q": 0.1611, "D": 0.1245, "K": 0.1713, "R": 0.2021,
-                        "-": 0.0}
 
     def peptide_signal(self, peptide):
         """

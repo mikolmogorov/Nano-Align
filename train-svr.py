@@ -15,11 +15,13 @@ import argparse
 
 import numpy as np
 
+from nanoalign.__version__ import __version__
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
-from nanoalign.svr_blockade import SvrBlockade
-from nanoalign.random_forest import RandomForestBlockade
 from nanoalign.pvalues_test import pvalues_test
+from nanoalign.model_loader import store_model
+from nanoalign.svr import SvrBlockade
+from nanoalign.random_forest import RandomForestBlockade
 
 
 def train_svr(mat_files, out_file, C=1000, gamma=0.001, epsilon=0.01):
@@ -44,7 +46,7 @@ def train_svr(mat_files, out_file, C=1000, gamma=0.001, epsilon=0.01):
     #model.train(peptides, signals, C, gamma, epsilon)
     model = RandomForestBlockade()
     model.train(peptides, signals)
-    model.store_pickle(out_file)
+    store_model(model, out_file)
 
 
 def cross_validate(train_mats, cv_mats, db_file, out_file):
@@ -108,7 +110,7 @@ def main():
                         "is generated",
                         default=None)
 
-    parser.add_argument("--version", action="version", version="0.1b")
+    parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
     if args.cv_blockades is None:

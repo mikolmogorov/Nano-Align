@@ -12,9 +12,8 @@ import sys
 import argparse
 
 from nanoalign.pvalues_test import pvalues_test
-from nanoalign.svr_blockade import SvrBlockade
-from nanoalign.random_forest import RandomForestBlockade
-from nanoalign.mv_blockade import MvBlockade
+from nanoalign.model_loader import load_model
+from nanoalign.__version__ import __version__
 
 
 def main():
@@ -24,8 +23,8 @@ def main():
 
     parser.add_argument("blockades_file", metavar="blockades_file",
                         help="path to blockades file (in mat format)")
-    parser.add_argument("svr_file", metavar="svr_file",
-                        help="path to SVR file (in Python's pickle format)")
+    parser.add_argument("model_file", metavar="model_file",
+                        help="path to trained model file (in Python's pickle format)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
                         default=10, help="blockades cluster size")
     parser.add_argument("-d", "--database", dest="database",
@@ -36,14 +35,11 @@ def main():
                         default=False, dest="single_blockades",
                         help="print statistics for each blockade in a cluster")
 
-    parser.add_argument("--version", action="version", version="0.1b")
+    parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
-    svr_model = RandomForestBlockade()
-    svr_model.load_from_pickle(args.svr_file)
-    #Uncomment for using mv model instead of SVR
-    #mv_model = MvBlockade()
-    pvalues_test(args.blockades_file, args.cluster_size, svr_model,
+    model = load_model(args.model_file)
+    pvalues_test(args.blockades_file, args.cluster_size, model,
                  args.database, args.single_blockades, sys.stderr)
     return 0
 
