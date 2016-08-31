@@ -7,7 +7,7 @@ Protein identification module
 """
 
 import random
-
+from itertools import izip
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -73,8 +73,11 @@ class Identifier(object):
         return sorted(distances.items(), key=lambda i: i[1])
 
 
-def _signals_distance(signal_1, signal_2):
+def _signals_distance(real_signal, model_signal):
     """
-    Computes distance between two discrete signals
+    Computes distance as 1 - R_squared statistic
     """
-    return distance.sqeuclidean(signal_1, signal_2)
+    residuals = distance.sqeuclidean(real_signal, model_signal)
+    mean = float(sum(real_signal)) / len(real_signal)
+    variance = sum((x - mean) ** 2 for x in real_signal)
+    return residuals / variance

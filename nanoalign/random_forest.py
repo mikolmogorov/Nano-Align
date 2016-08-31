@@ -7,6 +7,7 @@ from string import maketrans
 import os
 import pickle
 import random
+from itertools import chain
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -23,13 +24,15 @@ class RandomForestBlockade(object):
                         "W": 2376, "M": 1708, "A": 915, "G": 664,
                         "C": 1056, "Y": 2036, "P": 1293, "T": 1221,
                         "S": 991, "H": 1673, "E": 1551, "N": 1352,
-                        "Q": 1611, "D": 1245, "K": 1713, "R": 2021}
+                        "Q": 1611, "D": 1245, "K": 1713, "R": 2021,
+                        "X": 1500, "U": 1056, "Z": 1580, "B": 1300}
 
-        self.hydro =   {"I": 100, "F": 92, "V": 79, "L": 100,
-                        "W": 84, "M": 74, "A": 47, "G": 0,
-                        "C": 52, "Y": 49, "P": -46, "T": 13,
-                        "S": -7, "H": -42, "E": 8, "N": -41,
-                        "Q": -18, "D": -18, "K": -37, "R": -26}
+        self.hydro =   {"I": 450, "F": 280, "V": 420, "L": 380,
+                        "W": -90, "M": 190, "A": 180, "G": -40,
+                        "C": 250, "Y": -130, "P": -160, "T": -70,
+                        "S": -80, "H": -320, "E": -350, "N": -350,
+                        "Q": -350, "D": -350, "K": -390, "R": -450,
+                        "X": 0, "U": 250, "Z": -350, "B": -350}
 
     def load_from_pickle(self, filename):
         """
@@ -45,7 +48,8 @@ class RandomForestBlockade(object):
         pickle.dump(self.predictor, open(filename, "wb"))
 
     def train(self, peptides, signals):
-        features = map(lambda p: self._peptide_to_features(p), peptides)
+        features = map(lambda p: self._peptide_to_features(p, shuffle=True),
+                       peptides)
         train_features = np.array(sum(features, []))
 
         #regulzrisation
@@ -56,11 +60,11 @@ class RandomForestBlockade(object):
         train_signals = np.array(sum(signals, []))
         assert len(train_features) == len(train_signals)
 
-        self.predictor = RandomForestRegressor(n_estimators=10,
-                                               max_features="sqrt")
+        self.predictor = RandomForestRegressor(n_estimators=10)
         self.predictor.fit(noise_features, train_signals)
 
         #print(f_regression(noise_features, train_signals))
+        print(self.predictor.feature_importances_)
         print(self.predictor.score(noise_features, train_signals))
 
     def _rf_predict(self, feature_vec):
@@ -74,32 +78,34 @@ class RandomForestBlockade(object):
 
     def peptide_signal(self, peptide):
         """
-        Generates theoretical signal for a given peptide
+        Generates theoretical signal of a given peptide
         """
         assert self.predictor is not None
 
-        features = self._peptide_to_features(peptide)
+        features = self._peptide_to_features(peptide, shuffle=False)
         signal = np.array(map(lambda x: self._rf_predict(x), features))
-        #normalize the signal's amplitude
         #signal = signal / np.std(signal)
         return signal
 
-    def _peptide_to_features(self, peptide):
+    def _peptide_to_features(self, peptide, shuffle):
         volumes = map(self.volumes.get, peptide)
-        hydro = map(self.hydro.get, peptide)
+        #hydro = map(self.hydro.get, peptide)
         num_peaks = len(volumes) + self.window - 1
         flanked_volumes = ([0] * (self.window - 1) + volumes +
                            [0] * (self.window - 1))
-        flanked_hydro = ([0] * (self.window - 1) + hydro +
-                         [0] * (self.window - 1))
+        #flanked_hydro = ([0] * (self.window - 1) + hydro +
+        #                 [0] * (self.window - 1))
 
         features = []
         for i in xrange(0, num_peaks):
             v = flanked_volumes[i : i + self.window]
-            h = flanked_hydro[i : i + self.window]
-            random.shuffle(v)
-            random.shuffle(h)
+            if shuffle:
+                random.shuffle(v)
             features.append(tuple(v))
 
-        return features
+            #h = flanked_hydro[i : i + self.window]
+            #combined = zip(v, h)
+            #random.shuffle(combined)
+            #features.append(tuple(list(chain(*combined))))
 
+        return features

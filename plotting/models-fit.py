@@ -46,13 +46,14 @@ def plot_blockades(blockades_file, svr_file, cluster_size, show_text):
     mv_signal = MvBlockade().peptide_signal(peptide)
 
     for cluster in clusters:
+        cluster.consensus = sp.discretize(cluster.consensus, len(peptide))
         signal_length = len(cluster.consensus)
         model_grid = [i * signal_length / (len(mv_signal) - 1)
                       for i in xrange(len(mv_signal))]
 
-        interp_fun = interp1d(model_grid, mv_signal, kind="cubic")
+        interp_fun = interp1d(model_grid, mv_signal, kind="linear")
         mv_interp = interp_fun(xrange(signal_length))
-        interp_fun = interp1d(model_grid, svr_signal, kind="cubic")
+        interp_fun = interp1d(model_grid, svr_signal, kind="linear")
         svr_interp = interp_fun(xrange(signal_length))
 
         svr_corr = 1 - distance.correlation(cluster.consensus, svr_interp)
