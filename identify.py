@@ -24,7 +24,7 @@ def main():
     parser.add_argument("blockades_file", metavar="blockades_file",
                         help="path to blockades file (in mat format)")
     parser.add_argument("model_file", metavar="model_file",
-                        help="path to trained model file (in Python's pickle format)")
+                        help="path to trained model file ('-' for MV model)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
                         default=10, help="blockades cluster size")
     parser.add_argument("-d", "--database", dest="database",
