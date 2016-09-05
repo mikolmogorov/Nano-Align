@@ -29,7 +29,8 @@ from nanoalign.blockade import read_mat
 from nanoalign.model_loader import load_model
 
 
-def plot_blockades(blockades_file, model_file, cluster_size, show_text):
+def plot_blockades(blockades_file, model_files,
+                   cluster_size, show_text):
     """
     Pretty plotting
     """
@@ -40,34 +41,19 @@ def plot_blockades(blockades_file, model_file, cluster_size, show_text):
                                        min_dwell=0.5, max_dwell=20)
     peptide = clusters[0].blockades[0].peptide
 
-    model = load_model(model_file)
-    svr_signal = model.peptide_signal(peptide)
-    mv_signal = MvBlockade().peptide_signal(peptide)
+    models = []
+    for model_file in model_files:
+        models.append(load_model(model_file))
+    #svr_signal = model.peptide_signal(peptide)
+    #mv_signal = MvBlockade().peptide_signal(peptide)
 
     for cluster in clusters:
-        cluster.consensus = sp.discretize(cluster.consensus, len(peptide))
+        #cluster.consensus = sp.discretize(cluster.consensus, len(peptide))
         signal_length = len(cluster.consensus)
-        model_grid = [i * signal_length / (len(mv_signal) - 1)
-                      for i in xrange(len(mv_signal))]
 
-        interp_fun = interp1d(model_grid, mv_signal, kind="linear")
-        mv_interp = interp_fun(xrange(signal_length))
-        interp_fun = interp1d(model_grid, svr_signal, kind="linear")
-        svr_interp = interp_fun(xrange(signal_length))
-
-        svr_corr = 1 - distance.correlation(cluster.consensus, svr_interp)
-        mv_corr = 1 - distance.correlation(cluster.consensus, mv_interp)
-        print("SVR correlation: {0:5.2f}\tMV correlation: {1:5.2f}"
-                .format(svr_corr, mv_corr), file=sys.stderr)
-
-        #################
-        ##pretty plotting
         x_axis = np.linspace(0, len(peptide) + 1, signal_length)
         matplotlib.rcParams.update({"font.size": 16})
         fig = plt.subplot()
-        fig.plot(x_axis, cluster.consensus, label="Empirical signal", linewidth=1.5)
-        fig.plot(x_axis, mv_interp, label="MV model", linewidth=1.5)
-        fig.plot(x_axis, svr_interp, label=model.name, linewidth=1.5)
 
         fig.spines["right"].set_visible(False)
         fig.spines["top"].set_visible(False)
@@ -76,6 +62,23 @@ def plot_blockades(blockades_file, model_file, cluster_size, show_text):
         fig.set_xlim(0, len(peptide) + 1)
         fig.set_xlabel("Putative AA position")
         fig.set_ylabel("Normalized signal")
+
+        fig.plot(x_axis, cluster.consensus, label="Empirical signal", linewidth=1.5)
+
+        ################
+        for model in models:
+            model_signal = model.peptide_signal(peptide)
+            model_grid = [i * signal_length / (len(model_signal) - 1)
+                          for i in xrange(len(model_signal))]
+
+            interp_fun = interp1d(model_grid, model_signal, kind="linear")
+            model_interp = interp_fun(xrange(signal_length))
+
+            corr = 1 - distance.correlation(cluster.consensus, model_interp)
+            print("{0} correlation: {1:5.2f}\t".format(model.name, corr),
+                  file=sys.stderr)
+            fig.plot(x_axis, model_interp, label=model.name, linewidth=2)
+        ##############
 
         legend = fig.legend(loc="lower left", frameon=False)
         for label in legend.get_lines():
@@ -91,7 +94,6 @@ def plot_blockades(blockades_file, model_file, cluster_size, show_text):
                 fig.text(acids_pos[i], event_mean - 2, aa, fontsize=16)
 
         plt.show()
-        ################
 
 
 def _get_aa_positions(peptide, window_size, plot_len):
@@ -113,9 +115,9 @@ def main():
                                 argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("blockades_file", metavar="blockades_file",
                         help="path to blockades file (in mat format)")
-    parser.add_argument("model_file", metavar="model_file",
-                        help="path to a file with trained model "
-                             "(in Python's pickle format)")
+    parser.add_argument("model_files", metavar="model_files",
+                        help="comma-sparated paths to files with trained models "
+                             "('-' for mean volume)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
                         default=10, help="blockades cluster size")
     parser.add_argument("-t", "--aa-text", action="store_true",
@@ -123,9 +125,8 @@ def main():
                         help="show AAs")
     args = parser.parse_args()
 
-    plot_blockades(args.blockades_file, args.model_file,
+    plot_blockades(args.blockades_file, args.model_files.split(","),
                    args.cluster_size, args.aa_text)
-    #self_compare(clusters, SMOOTH)
     return 0
 
 
