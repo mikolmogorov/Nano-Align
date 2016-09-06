@@ -63,23 +63,24 @@ class RandomForestBlockade(BlockadeModel):
 
     def _peptide_to_features(self, peptide, shuffle):
         volumes = map(self.volumes.get, peptide)
-        #hydro = map(self.hydro.get, peptide)
+        hydro = map(self.hydro.get, peptide)
         num_peaks = len(volumes) + self.window - 1
         flanked_volumes = ([0] * (self.window - 1) + volumes +
                            [0] * (self.window - 1))
-        #flanked_hydro = ([0] * (self.window - 1) + hydro +
-        #                 [0] * (self.window - 1))
+        flanked_hydro = ([0] * (self.window - 1) + hydro +
+                         [0] * (self.window - 1))
 
         features = []
         for i in xrange(0, num_peaks):
             v = flanked_volumes[i : i + self.window]
-            if shuffle:
-                random.shuffle(v)
-            features.append(tuple(v))
+            #if shuffle:
+            #    random.shuffle(v)
+            #features.append(tuple(v))
 
-            #h = flanked_hydro[i : i + self.window]
-            #combined = zip(v, h)
-            #random.shuffle(combined)
-            #features.append(tuple(list(chain(*combined))))
+            h = flanked_hydro[i : i + self.window]
+            combined = zip(v, h)
+            if shuffle:
+                random.shuffle(combined)
+            features.append(tuple(list(chain(*combined))))
 
         return features
