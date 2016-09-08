@@ -20,6 +20,7 @@ import matplotlib
 import scipy.fftpack as fftpack
 from scipy import signal
 
+from nanoalign.__version__ import __version__
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
 
@@ -149,6 +150,7 @@ def main():
     parser.add_argument("-d", "--detailed", action="store_true",
                         default=False, dest="detailed",
                         help="detailed plots for each blockade")
+    parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
     frequency_distribution(args.blockades_file, args.detailed)

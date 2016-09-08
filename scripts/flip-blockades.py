@@ -14,18 +14,17 @@ import os
 
 nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, nanoalign_root)
-from nanoalign.svr_blockade import SvrBlockade
 from nanoalign.identifier import Identifier
 from nanoalign.blockade import read_mat, write_mat
 import nanoalign.signal_proc as sp
+from nanoalign.model_loader import load_model
 
 
-def flip(blockades, svr_file):
+def flip(blockades, model_file):
     """
     Flips blockades
     """
-    blockade_model = SvrBlockade()
-    blockade_model.load_from_pickle(svr_file)
+    blockade_model = load_model(model_file)
     identifier = Identifier(blockade_model)
 
     peptide = blockades[0].peptide
@@ -57,8 +56,9 @@ def flip(blockades, svr_file):
 
 def main():
     if len(sys.argv) != 4:
-        print("usage: flip-blockades.py blockades_in svr_file flipped_out\n\n"
-              "Orients blockade signals according to the AA order in protein")
+        print("usage: flip-blockades.py blockades_in model_file flipped_out\n\n"
+              "Orients blockade signals according to the AA order "
+              "in the protein of origin")
         return 1
 
     blockades_in = sys.argv[1]

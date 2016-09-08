@@ -42,8 +42,8 @@ def frequency_plot(blockade_files):
         frequencies.append(dataset_freqs)
         datasets_names.append(os.path.basename(file).split(".")[0])
 
-    x_axis = np.arange(min(sum(frequencies, [])) - 5,
-                       max(sum(frequencies, [])) + 5, 0.1)
+    x_axis = np.arange(min(sum(frequencies, [])) - 10,
+                       max(sum(frequencies, [])) + 10, 0.1)
     matplotlib.rcParams.update({"font.size": 16})
     fig = plt.subplot()
 

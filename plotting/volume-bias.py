@@ -18,16 +18,16 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+from scipy.stats import linregress
 
 nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, nanoalign_root)
 import nanoalign.signal_proc as sp
-from nanoalign.svr_blockade import SvrBlockade
-from nanoalign.mv_blockade import MvBlockade
 from nanoalign.blockade import read_mat
+from nanoalign.model_loader import load_model
 
 
-def get_bias(blockades_file, svr_file, cluster_size):
+def get_bias(blockades_file, model_file, cluster_size):
     """
     Gets AA-specific bias between the empirical and theoretical signals
     """
@@ -38,11 +38,7 @@ def get_bias(blockades_file, svr_file, cluster_size):
                                        min_dwell=0.5, max_dwell=20)
     peptide = clusters[0].blockades[0].peptide
 
-    if svr_file is not None:
-        blockade_model = SvrBlockade()
-        blockade_model.load_from_pickle(svr_file)
-    else:
-        blockade_model = MvBlockade()
+    blockade_model = load_model(model_file)
 
     errors = defaultdict(list)
     model_signal = blockade_model.peptide_signal(peptide)
@@ -71,11 +67,13 @@ def fancy_plot(errors, plot_type):
                "C": 106, "Y": 204, "P": 129, "T": 122,
                "S": 99, "H": 167, "E": 155, "N": 135,
                "Q": 161, "D": 124, "K": 171, "R": 202}
-    HYDRO =   {"I": 100, "F": 92, "V": 79, "L": 100,
-               "W": 84, "M": 74, "A": 47, "G": 0,
-               "C": 52, "Y": 49, "P": -46, "T": 13,
-               "S": -7, "H": -42, "E": 8, "N": -41,
-               "Q": -18, "D": -18, "K": -37, "R": -26}
+
+    #hydrophilicity indices from Janin, 1979
+    HYDRO =   {"I": 3.1, "F": 2.2, "V": 2.9, "L": 2.4,
+               "W": 1.6, "M": 1.9, "A": 1.7, "G": 1.8,
+               "C": 4.6, "Y": 0.5, "P": 0.6, "T": 0.7,
+               "S": 0.8, "H": 0.8, "E": 0.3, "N": 0.4,
+               "Q": 0.3, "D": 0.4, "K": 0.05, "R": 0.1}
 
     if plot_type == "volume":
         sorted_aa = sorted(errors.keys(), key=VOLUMES.get)
@@ -85,6 +83,7 @@ def fancy_plot(errors, plot_type):
 
     x_axis = range(1, len(sorted_aa) + 1)
     medians = map(lambda x: np.median(x), sorted_values)
+    print("P-value:", linregress(x_axis, medians)[3])
     poly = np.polyfit(x_axis, medians, 1)
     poly_fun = np.poly1d(poly)
 
@@ -128,17 +127,17 @@ def main():
                                      argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("blockades_file", metavar="blockades_file",
                         help="path to blockades file (in mat format)")
+    parser.add_argument("model_file", metavar="model_file",
+                        help="path to trained blockade model file "
+                        "('-' for mean volume model)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
                         default=10, help="blockades cluster size")
-    parser.add_argument("-s", "--svr", dest="svr_file",
-                        metavar="svr_file", help="A path to SVR model file. "
-                        "If not set, MV model will be used", default=None)
     parser.add_argument("--hydro", action="store_true",
                         default=False, dest="hydro",
                         help="Order AA by hydrophilicity instead of volume")
     args = parser.parse_args()
 
-    errors = get_bias(args.blockades_file, args.svr_file, args.cluster_size)
+    errors = get_bias(args.blockades_file, args.model_file, args.cluster_size)
     mode = "volume" if not args.hydro else "hydro"
     fancy_plot(errors, mode)
     return 0
