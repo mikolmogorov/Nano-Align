@@ -18,6 +18,7 @@ class BlockadeModel(object):
         self.predictor = None
         self.window = 4
 
+        #amino acid volumes from Perkins, 1986
         self.volumes = {"I": 1688, "F": 2034, "V": 1417, "L": 1679,
                         "W": 2376, "M": 1708, "A": 915, "G": 664,
                         "C": 1056, "Y": 2036, "P": 1293, "T": 1221,
