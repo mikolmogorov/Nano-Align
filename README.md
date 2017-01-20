@@ -21,70 +21,87 @@ system package manager (e.g. apt-get in Ubuntu) or *pip* for installation:
     pip install package_name
 
 
-Data Requirements
+Data Availability
 -----------------
 
-Nano-Align uses matlab-like files (.mat) with recorded blockade currents
-as input. However, there are some modifications comparing to the original
-format. Original .mat files could be easily extended to the desired format
-using the provided scripts. See the detailed instructions in "Data preparation"
-section.
+To download the datasets used in the paper, type:
 
+    wget https://github.com/fenderglass/datasets/raw/master/nano-align/nano-align.zip
+
+The package also contains the trained Random Forest and SVR
+model for convenience.
 
 Quick Example
 -------------
 
-This is a quick example of Nano-Align pipeline. Given
-two original ".mat" files with recorded blockades 
-(for example, "H32.mat" and "H4.mat"), the commands order
-will be as follows:
+This is a quick example of Nano-Align pipeline, assuming that
+you have downloaded the manuscript datasets into 'data' directory.
+Please see the detailed usage information below.
 
-Add protein sequences to .mat files:
+Train Random Forest model on H32 nanospectra:
 
-    scripts/protein-label.py H32.mat "ARTKQTARK...(H32 sequence)"
-    scripts/protein-label.py H4.mat "MSGRGKGGK...(H4 sequence)"
+    ./train-model.py rf data/nanospectra/H32.mat h32_rf.pcl
 
-Train SVR model:
+Perform identification of H4 nanospectra:
 
-    train-svr.py H32.mat svr_H32.pcl
+    ./identify.py data/nanospectra/H4.mat h32_rf.pcl
 
-Normalize blockades directions:
+Plot H32 nanospectra against the RF and MV models:
 
-    scripts/flip-blockades.py H4.mat svr_H32.pcl H4_flipped.mat
+    ./plotting/models-fit.py data/nanospectra/H32.mat h32_rf.pcl,-
 
-Perform identification:
+Plot identification p-values as a function of number of nanospectra in a cluster:
 
-    identify.py H4_flipped.mat svr_H32.pcl
+    ./plotting/identification-pvalues.py data/nanospectra/H4.mat h32_rf.pcl
+
 
 
 Usage
 -----
 
-The package consist of multple scripts. Three main ones are located
-in the root directory:
+See detailed description of the parameters for each script by
+specifying "-h" option.
 
-### train-svr.py
 
-This script trains SVR model using the given blockades signals of a
-known protein. The output file (model) then could be used as an
-input for other algorithms. Type "train-svr.py -h" for details.
+### train-model.py
+
+Trains the regression model based on Random Forest / SVR,
+given nanospectra of a known protein. The output file (model) 
+then is then used as an input for other algorithms. 
 
 
 ### identify.py
 
-This scipt performs protein identification and estimates p-values.
-It requires trained SVR model as an input. Type "identify.py -h"
-for the detailed parameter description.
+Performs protein identification and estimates p-values.
+It takes trained RF/SVR model as an input.
 
 
-### estimate-length.py
+Visualization scripts
+---------------------
 
-This script measures blockade frequencies, which are
-associated with the protein length (and possibly, some other features).
+There is a number of scripts that can be used to visualize different
+features of the data. They are located in the "plotting" directory
+
+### models-fit.py
+
+Plots nanospectra against the corresponding regression models.
+
+### identification-pvalues.py
+
+Plots identification p-values depending on the cluster size
+
+### mixture.py
+
+Plots the frequency distribution of a multiple sets of nanospectra,
+originating from different proteins.
+
+### volume-bias.py
+
+Plots volume- or hydrophilicity-related bias of the model.
 
 
-Data Preparation
-----------------
+Scripts for Input Data Manipulation
+-----------------------------------
 
 The scripts located in "scripts" directory provide some extra
 functionality for the data preprocessing and analysis.
@@ -108,42 +125,3 @@ Merges multiple .mat files into one.
 
 Adds protein sequence labels to .mat file - a prerequisite for
 the further analysis.
-
-
-Plotting Scripts
-----------------
-
-Scripts from "plotting" directory could be used for drawing plots
-(similar to ones from the manuscript).
-
-### blockades-freq.py
-
-Plots blocakdes frequencies for different dataset to highlight the difference.
-
-### identification-pvalues.py
-
-Plots p-values of protein identification for the different cluster sizes.
-
-### models-fit.py
-
-Plots emperical blockades versus theoretical models for the visual comparison.
-
-### volume-bias.py
-
-Plots volume-related or hydrophillicity-related bias based on the
-difference between empirical and theoretical traces.
-
-
-Datasets from the Manuscript
-----------------------------
-
-Here we describe the exact datasets used in the manuscript, which
-could be used for the reproduction of the results. The exact commands that
-were used to get the reults are given in "Quick Example" section.
-The plotting scripts are located in "plotting" directory.
-
-* "H3.2" -- *ZD350_H32_D5.mat*
-* "H4" -- a union of *ZD349_H4_D3.mat*, *ZD349_H4_D4.mat* and *ZD349_H4_D5.mat*
-* "CCL5" -- *ZD158_CCL5.mat*
-* "H3" -- *ZD243_H3N.mat* 
-* "H3.3" -- *ZD350_H33_D2.mat*

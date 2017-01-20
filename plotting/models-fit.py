@@ -110,10 +110,10 @@ def _get_aa_positions(peptide, window_size, plot_len):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plotting blockade signals "
-                                "against theoreticla models", formatter_class= \
+    parser = argparse.ArgumentParser(description="Plotting nanospectra "
+                                "against the regression models", formatter_class= \
                                 argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("blockades_file", metavar="blockades_file",
+    parser.add_argument("nanospectra_file", metavar="nanospectra_file",
                         help="path to blockades file (in mat format)")
     parser.add_argument("model_files", metavar="model_files",
                         help="comma-sparated paths to files with trained models "
@@ -125,7 +125,7 @@ def main():
                         help="show AAs")
     args = parser.parse_args()
 
-    plot_blockades(args.blockades_file, args.model_files.split(","),
+    plot_blockades(args.nanospectra_file, args.model_files.split(","),
                    args.cluster_size, args.aa_text)
     return 0
 

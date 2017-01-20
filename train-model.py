@@ -70,9 +70,9 @@ def main():
     parser.add_argument("model_type", metavar="model_type",
                         choices=["svr", "rf"],
                         help="model type ('svr' or 'rf')")
-    parser.add_argument("train_blockades", metavar="train_blockades",
-                        help="comma-separated list of files with train "
-                        "blockades (in mat format)")
+    parser.add_argument("training_nanospectra", metavar="training_nanospectra",
+                        help="comma-separated list of files with training "
+                        "nanospectra (in mat format)")
     parser.add_argument("out_file", metavar="out_file",
                         help="path to the output file "
                         "(in Python's pickle format)")
@@ -80,9 +80,9 @@ def main():
     args = parser.parse_args()
 
     if args.model_type == "svr":
-        _train_svr(args.train_blockades.split(","), args.out_file)
+        _train_svr(args.training_nanospectra.split(","), args.out_file)
     else:
-        _train_random_forest(args.train_blockades.split(","), args.out_file)
+        _train_random_forest(args.training_nanospectra.split(","), args.out_file)
     return 0
 
 

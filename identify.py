@@ -21,8 +21,8 @@ def main():
                                      "identification", formatter_class= \
                                      argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("blockades_file", metavar="blockades_file",
-                        help="path to blockades file (in mat format)")
+    parser.add_argument("nanospectra_file", metavar="nanospectra_file",
+                        help="path to nanospectra file (in mat format)")
     parser.add_argument("model_file", metavar="model_file",
                         help="path to trained model file ('-' for MV model)")
     parser.add_argument("-c", "--cluster-size", dest="cluster_size", type=int,
@@ -31,16 +31,16 @@ def main():
                         metavar="database", help="database file (in FASTA "
                         "format). If not set, random database is generated",
                         default=None)
-    parser.add_argument("-s", "--single-blockades", action="store_true",
-                        default=False, dest="single_blockades",
-                        help="print statistics for each blockade in a cluster")
+    parser.add_argument("-s", "--single-nanospectra", action="store_true",
+                        default=False, dest="single_nanospectra",
+                        help="print statistics for each nanospectra in a cluster")
 
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
     model = load_model(args.model_file)
-    pvalues_test(args.blockades_file, args.cluster_size, model,
-                 args.database, args.single_blockades, sys.stderr)
+    pvalues_test(args.nanospectra_file, args.cluster_size, model,
+                 args.database, args.single_nanospectra, sys.stderr)
     return 0
 
 

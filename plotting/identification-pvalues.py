@@ -88,12 +88,12 @@ def plot_pvalues(pvalues):
 
 def main():
     parser = argparse.ArgumentParser(description="Plots identification "
-                     "p-values as a function of the number of blockades "
+                     "p-values as a function of the number of nanospectra "
                      "in a cluster", formatter_class= \
                      argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("blockades_file", metavar="blockades_file",
-                        help="input file with blockades (in mat format)")
+    parser.add_argument("nanospectra_file", metavar="nanospectra_file",
+                        help="input file with nanospectra (in mat format)")
     parser.add_argument("model_file", metavar="model_file",
                         help="path to the trained model file "
                         "('-' for MV model)")
@@ -102,7 +102,7 @@ def main():
                         "format). If not set, random database is generated",
                         default=None)
     args = parser.parse_args()
-    full_identify(args.blockades_file, args.model_file, args.database)
+    full_identify(args.nanospectra_file, args.model_file, args.database)
 
     return 0
 

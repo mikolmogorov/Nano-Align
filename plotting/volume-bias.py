@@ -125,8 +125,8 @@ def main():
     parser = argparse.ArgumentParser(description="Compute volume- and"
                                      "hydro-related bias", formatter_class= \
                                      argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("blockades_file", metavar="blockades_file",
-                        help="path to blockades file (in mat format)")
+    parser.add_argument("nanospectra_file", metavar="nanospectra_file",
+                        help="path to nanospectra file (in mat format)")
     parser.add_argument("model_file", metavar="model_file",
                         help="path to trained blockade model file "
                         "('-' for mean volume model)")
@@ -137,7 +137,7 @@ def main():
                         help="Order AA by hydrophilicity instead of volume")
     args = parser.parse_args()
 
-    errors = get_bias(args.blockades_file, args.model_file, args.cluster_size)
+    errors = get_bias(args.nanospectra_file, args.model_file, args.cluster_size)
     mode = "volume" if not args.hydro else "hydro"
     fancy_plot(errors, mode)
     return 0

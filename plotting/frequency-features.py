@@ -10,6 +10,7 @@ which is associated with a protein length and other features
 """
 
 from __future__ import print_function
+import os
 import sys
 import math
 import argparse
@@ -20,6 +21,8 @@ import matplotlib
 import scipy.fftpack as fftpack
 from scipy import signal
 
+nanoalign_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, nanoalign_root)
 from nanoalign.__version__ import __version__
 import nanoalign.signal_proc as sp
 from nanoalign.blockade import read_mat
@@ -141,19 +144,19 @@ def detailed_plots(blockade):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Estimates blockades "
-                                     "frequency", formatter_class= \
+    parser = argparse.ArgumentParser(description="Estimates nanospectra "
+                                     "frequency features", formatter_class= \
                                      argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("blockades_file", metavar="blockades_file",
-                        help="path to blockades file (in mat format)")
+    parser.add_argument("nanospectra_file", metavar="nanospectra_file",
+                        help="path to nanospectra file (in mat format)")
     parser.add_argument("-d", "--detailed", action="store_true",
                         default=False, dest="detailed",
-                        help="detailed plots for each blockade")
+                        help="detailed plots for each nanospectra")
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args()
 
-    frequency_distribution(args.blockades_file, args.detailed)
+    frequency_distribution(args.nanospectra_file, args.detailed)
     return 0
 
 

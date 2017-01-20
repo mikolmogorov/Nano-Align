@@ -76,7 +76,7 @@ def frequency_plot(blockade_files):
 
 def main():
     if len(sys.argv) == 1:
-        print("usage: blockades-freq.py blockades_file_1[,blockades_file_2...]"
+        print("usage: mixture.py nanospectra_file_1[ ,nanospectra_file_2...]"
               "\n\n Plots frequency distribution of multiple datasets",
               file=sys.stderr)
         return 1
